@@ -6,7 +6,8 @@ import Header from '../components/Header'
 const styles = {
   page: {
     minHeight: '100vh',
-    backgroundColor: '#0f172a',
+    backgroundColor: 'var(--bg-page)',
+    transition: 'background-color 0.3s',
   },
   container: {
     padding: '2rem',
@@ -22,12 +23,12 @@ const styles = {
   title: {
     fontSize: '1.75rem',
     fontWeight: '700',
-    color: '#f1f5f9',
+    color: 'var(--text-primary)',
     letterSpacing: '-0.02em',
   },
   subtitle: {
     fontSize: '0.9rem',
-    color: '#64748b',
+    color: 'var(--text-dim)',
     marginTop: '0.25rem',
   },
   newButton: {
@@ -51,10 +52,10 @@ const styles = {
     gap: '1.25rem',
   },
   card: {
-    backgroundColor: '#1e293b',
+    backgroundColor: 'var(--bg-surface)',
     borderRadius: '12px',
     padding: '1.5rem',
-    border: '1px solid #334155',
+    border: '1px solid var(--border)',
     transition: 'all 0.25s ease',
     cursor: 'pointer',
     position: 'relative',
@@ -71,12 +72,12 @@ const styles = {
   cardName: {
     fontSize: '1.1rem',
     fontWeight: '600',
-    color: '#f1f5f9',
+    color: 'var(--text-primary)',
     marginBottom: '0.4rem',
   },
   cardDesc: {
     fontSize: '0.85rem',
-    color: '#94a3b8',
+    color: 'var(--text-muted)',
     marginBottom: '1rem',
     lineHeight: 1.5,
   },
@@ -85,10 +86,10 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     fontSize: '0.78rem',
-    color: '#64748b',
+    color: 'var(--text-dim)',
     marginBottom: '1rem',
     paddingTop: '0.75rem',
-    borderTop: '1px solid #334155',
+    borderTop: '1px solid var(--border)',
   },
   statusActive: {
     color: '#22c55e',
@@ -98,7 +99,7 @@ const styles = {
     gap: '0.3rem',
   },
   statusInactive: {
-    color: '#64748b',
+    color: 'var(--text-dim)',
     display: 'flex',
     alignItems: 'center',
     gap: '0.3rem',
@@ -121,8 +122,8 @@ const styles = {
   btnToggle: {
     padding: '0.4rem 0.75rem',
     backgroundColor: 'transparent',
-    border: '1px solid #334155',
-    color: '#94a3b8',
+    border: '1px solid var(--border)',
+    color: 'var(--text-muted)',
     borderRadius: '6px',
     cursor: 'pointer',
     fontSize: '0.8rem',
@@ -132,8 +133,8 @@ const styles = {
   btnDelete: {
     padding: '0.4rem 0.75rem',
     backgroundColor: 'transparent',
-    border: '1px solid #334155',
-    color: '#64748b',
+    border: '1px solid var(--border)',
+    color: 'var(--text-dim)',
     borderRadius: '6px',
     cursor: 'pointer',
     fontSize: '0.8rem',
@@ -144,11 +145,11 @@ const styles = {
     gridColumn: '1 / -1',
     textAlign: 'center',
     padding: '4rem 2rem',
-    color: '#64748b',
+    color: 'var(--text-dim)',
   },
   emptyTitle: {
     fontSize: '1.1rem',
-    color: '#94a3b8',
+    color: 'var(--text-muted)',
     marginBottom: '0.5rem',
     fontWeight: '600',
   },
@@ -161,7 +162,7 @@ const styles = {
   spinner: {
     width: '36px',
     height: '36px',
-    border: '3px solid #334155',
+    border: '3px solid var(--border)',
     borderTopColor: '#6366f1',
     borderRadius: '50%',
     animation: 'spin 0.7s linear infinite',
@@ -262,7 +263,7 @@ function FlowList() {
                 e.currentTarget.style.transform = 'translateY(-3px)'
                 e.currentTarget.style.boxShadow = selectedFlowId === flow.id
                   ? '0 0 0 1px #6366f1, 0 8px 30px rgba(99, 102, 241, 0.2)'
-                  : '0 8px 30px rgba(0,0,0,0.3)'
+                  : '0 8px 30px rgba(0,0,0,0.15)'
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'translateY(0)'
@@ -280,7 +281,7 @@ function FlowList() {
 
               <div style={styles.cardMeta}>
                 <span style={flow.is_active ? styles.statusActive : styles.statusInactive}>
-                  {flow.is_active ? '● Ativo' : '○ Inativo'}
+                  {flow.is_active ? '\u25CF Ativo' : '\u25CB Inativo'}
                 </span>
                 <span>
                   Criado em {new Date(flow.created_at).toLocaleDateString()}
@@ -302,8 +303,8 @@ function FlowList() {
                     e.target.style.color = flow.is_active ? '#f59e0b' : '#22c55e'
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.borderColor = '#334155'
-                    e.target.style.color = '#94a3b8'
+                    e.target.style.borderColor = 'var(--border)'
+                    e.target.style.color = 'var(--text-muted)'
                   }}
                 >
                   {flow.is_active ? 'Desativar' : 'Ativar'}
@@ -322,8 +323,8 @@ function FlowList() {
                     }
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.borderColor = '#334155'
-                    e.target.style.color = '#64748b'
+                    e.target.style.borderColor = 'var(--border)'
+                    e.target.style.color = 'var(--text-dim)'
                   }}
                 >
                   Excluir

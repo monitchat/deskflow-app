@@ -1,7 +1,9 @@
 import { useNavigate } from 'react-router-dom'
+import { useTheme } from '../contexts/ThemeContext'
 
 function Header() {
   const navigate = useNavigate()
+  const { theme, toggleTheme } = useTheme()
   const userName = localStorage.getItem('user_name') || 'Usuário'
   const userAvatar = localStorage.getItem('user_avatar') || ''
   const firstName = userName.split(' ')[0]
@@ -17,7 +19,7 @@ function Header() {
 
   return (
     <header style={{
-      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+      background: 'var(--header-bg)',
       padding: '0.75rem 2rem',
       display: 'flex',
       justifyContent: 'space-between',
@@ -25,7 +27,9 @@ function Header() {
       position: 'sticky',
       top: 0,
       zIndex: 1000,
-      boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+      boxShadow: 'var(--header-shadow)',
+      borderBottom: '1px solid var(--border)',
+      transition: 'background 0.3s, box-shadow 0.3s',
     }}>
       <div style={{
         display: 'flex',
@@ -58,6 +62,36 @@ function Header() {
         alignItems: 'center',
         gap: '0.75rem'
       }}>
+        <button
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+          style={{
+            width: '34px',
+            height: '34px',
+            padding: 0,
+            backgroundColor: 'transparent',
+            color: 'var(--header-btn-text)',
+            border: '1px solid var(--header-btn-border)',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'var(--accent)'
+            e.currentTarget.style.color = 'var(--accent)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'var(--header-btn-border)'
+            e.currentTarget.style.color = 'var(--header-btn-text)'
+          }}
+        >
+          {theme === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19'}
+        </button>
+
         {userAvatar && (
           <img
             src={userAvatar}
@@ -93,7 +127,7 @@ function Header() {
 
         <span style={{
           fontWeight: '500',
-          color: '#cbd5e1',
+          color: 'var(--header-text)',
           fontSize: '0.9rem',
         }}>
           {firstName}
@@ -104,8 +138,8 @@ function Header() {
           style={{
             padding: '0.4rem 0.9rem',
             backgroundColor: 'transparent',
-            color: '#94a3b8',
-            border: '1px solid #334155',
+            color: 'var(--header-btn-text)',
+            border: '1px solid var(--header-btn-border)',
             borderRadius: '6px',
             cursor: 'pointer',
             fontWeight: '500',
@@ -120,8 +154,8 @@ function Header() {
           }}
           onMouseLeave={(e) => {
             e.target.style.backgroundColor = 'transparent'
-            e.target.style.borderColor = '#334155'
-            e.target.style.color = '#94a3b8'
+            e.target.style.borderColor = 'var(--header-btn-border)'
+            e.target.style.color = 'var(--header-btn-text)'
           }}
         >
           Sair

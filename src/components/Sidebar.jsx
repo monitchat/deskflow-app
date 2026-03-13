@@ -114,12 +114,38 @@ const nodeDefinitions = [
   },
 ]
 
-function Sidebar() {
+function Sidebar({ sidebarPinned, onTogglePin }) {
   return (
     <div className="flow-builder-sidebar">
       <div className="sidebar-section">
-        <h3>Componentes</h3>
-        <p style={{ fontSize: '0.8rem', color: '#999', marginBottom: '1rem' }}>
+        <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          Componentes
+          {onTogglePin && (
+            <button
+              onClick={onTogglePin}
+              title={sidebarPinned ? 'Desafixar sidebar' : 'Fixar sidebar'}
+              style={{
+                width: '22px',
+                height: '22px',
+                padding: 0,
+                backgroundColor: 'transparent',
+                color: sidebarPinned ? 'var(--accent)' : 'var(--text-dim)',
+                border: '1px solid var(--border)',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                fontSize: '0.65rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s',
+                transform: sidebarPinned ? 'rotate(0deg)' : 'rotate(45deg)',
+              }}
+            >
+              {'\uD83D\uDCCC'}
+            </button>
+          )}
+        </h3>
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '0.75rem' }}>
           Arraste os componentes para o canvas
         </p>
 
@@ -133,8 +159,8 @@ function Sidebar() {
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <span className="node-type-icon">{node.icon}</span>
               <div>
-                <div style={{ fontWeight: 600 }}>{node.label}</div>
-                <div style={{ fontSize: '0.75rem', color: '#999' }}>
+                <div style={{ fontWeight: 600, color: 'var(--sidebar-item-label)', fontSize: '0.85rem' }}>{node.label}</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--sidebar-item-desc)' }}>
                   {node.description}
                 </div>
               </div>
@@ -145,7 +171,7 @@ function Sidebar() {
 
       <div className="sidebar-section">
         <h3>Instruções</h3>
-        <ul style={{ fontSize: '0.8rem', color: '#666', paddingLeft: '1.2rem' }}>
+        <ul style={{ fontSize: '0.75rem', color: 'var(--text-muted)', paddingLeft: '1.2rem', lineHeight: 1.8 }}>
           <li>Arraste componentes para o canvas</li>
           <li>Clique em um nó para editar</li>
           <li>Clique em uma conexão para adicionar condição</li>
@@ -156,33 +182,33 @@ function Sidebar() {
 
       <div className="sidebar-section">
         <h3>Legenda de Condições</h3>
-        <div style={{ fontSize: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <div style={{ width: '20px', height: '3px', backgroundColor: '#b1b1b7', marginRight: '0.5rem' }}></div>
+        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.4rem' }}>
+            <div style={{ width: '20px', height: '3px', backgroundColor: 'var(--text-dim)', marginRight: '0.5rem', borderRadius: '2px' }}></div>
             <span>Sem condição</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <div style={{ width: '20px', height: '3px', backgroundColor: '#4CAF50', marginRight: '0.5rem' }}></div>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.4rem' }}>
+            <div style={{ width: '20px', height: '3px', backgroundColor: '#22c55e', marginRight: '0.5rem', borderRadius: '2px' }}></div>
             <span>Equals (igual a)</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <div style={{ width: '20px', height: '3px', backgroundColor: '#2196F3', marginRight: '0.5rem' }}></div>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.4rem' }}>
+            <div style={{ width: '20px', height: '3px', backgroundColor: '#3b82f6', marginRight: '0.5rem', borderRadius: '2px' }}></div>
             <span>Contains (contém)</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <div style={{ width: '20px', height: '3px', backgroundColor: '#FF9800', marginRight: '0.5rem' }}></div>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.4rem' }}>
+            <div style={{ width: '20px', height: '3px', backgroundColor: '#f59e0b', marginRight: '0.5rem', borderRadius: '2px' }}></div>
             <span>Context (contexto)</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <div style={{ width: '20px', height: '3px', backgroundColor: '#9C27B0', marginRight: '0.5rem' }}></div>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.4rem' }}>
+            <div style={{ width: '20px', height: '3px', backgroundColor: '#a855f7', marginRight: '0.5rem', borderRadius: '2px' }}></div>
             <span>Positive (sim/ok)</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <div style={{ width: '20px', height: '3px', backgroundColor: '#00BCD4', marginRight: '0.5rem' }}></div>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.4rem' }}>
+            <div style={{ width: '20px', height: '3px', backgroundColor: '#06b6d4', marginRight: '0.5rem', borderRadius: '2px' }}></div>
             <span>Digit (número)</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <div style={{ width: '20px', height: '3px', backgroundColor: '#F44336', marginRight: '0.5rem' }}></div>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.4rem' }}>
+            <div style={{ width: '20px', height: '3px', backgroundColor: '#ef4444', marginRight: '0.5rem', borderRadius: '2px' }}></div>
             <span>Regex</span>
           </div>
         </div>

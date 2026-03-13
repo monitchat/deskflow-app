@@ -69,6 +69,11 @@ function FlowBuilderInner() {
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
   const [connectionMenu, setConnectionMenu] = useState(null) // { x, y, sourceNodeId }
   const [copiedNode, setCopiedNode] = useState(null)
+  const [sidebarPinned, setSidebarPinned] = useState(() => {
+    const saved = localStorage.getItem('deskflow-sidebar-pinned')
+    return saved !== null ? saved === 'true' : true
+  })
+  const [sidebarVisible, setSidebarVisible] = useState(true)
   const connectingNodeId = useRef(null) // Armazena o ID do nó de origem durante drag
 
   useEffect(() => {
@@ -829,7 +834,69 @@ function FlowBuilderInner() {
       </div>
 
       <div className="flow-builder-content">
-        <Sidebar />
+        {/* Aba visível para abrir sidebar quando escondida */}
+        {!sidebarPinned && !sidebarVisible && (
+          <div
+            onClick={() => setSidebarVisible(true)}
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              zIndex: 50,
+              width: '24px',
+              height: '60px',
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border)',
+              borderLeft: 'none',
+              borderRadius: '0 8px 8px 0',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '2px 0 8px rgba(0,0,0,0.15)',
+              transition: 'all 0.2s',
+              color: 'var(--text-dim)',
+              fontSize: '0.7rem',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--accent)'
+              e.currentTarget.style.color = '#fff'
+              e.currentTarget.style.width = '28px'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-surface)'
+              e.currentTarget.style.color = 'var(--text-dim)'
+              e.currentTarget.style.width = '24px'
+            }}
+          >
+            {'\u276F'}
+          </div>
+        )}
+
+        <div
+          onMouseLeave={() => {
+            if (!sidebarPinned) setSidebarVisible(false)
+          }}
+          style={{
+            position: sidebarPinned ? 'relative' : 'absolute',
+            left: 0,
+            top: 0,
+            height: '100%',
+            zIndex: sidebarPinned ? 'auto' : 40,
+            transform: sidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
+            transition: 'transform 0.25s ease',
+            boxShadow: !sidebarPinned && sidebarVisible ? '4px 0 20px rgba(0,0,0,0.2)' : 'none',
+          }}
+        >
+          <Sidebar sidebarPinned={sidebarPinned} onTogglePin={() => {
+            const next = !sidebarPinned
+            setSidebarPinned(next)
+            localStorage.setItem('deskflow-sidebar-pinned', String(next))
+            if (!next) setSidebarVisible(false)
+            else setSidebarVisible(true)
+          }} />
+        </div>
 
         <div className="flow-builder-canvas">
           <ReactFlow
