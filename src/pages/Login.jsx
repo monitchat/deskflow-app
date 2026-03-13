@@ -193,6 +193,7 @@ function Login() {
           localStorage.setItem('user_email', userInfo.email || '')
           localStorage.setItem('user_avatar', userInfo.avatar || '')
           localStorage.setItem('user_company_id', userInfo.company_id || '')
+          localStorage.setItem('deskflow-embedded', 'false')
         }
 
         navigate('/')

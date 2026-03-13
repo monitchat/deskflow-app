@@ -26,6 +26,9 @@ function ProtectedRoute({ children }) {
     } catch (e) {
       console.error('Error decoding JWT from URL:', e)
     }
+
+    // Marca que está rodando incorporado (iframe)
+    localStorage.setItem('deskflow-embedded', 'true')
   }
 
   const token = localStorage.getItem('token')
