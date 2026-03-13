@@ -167,6 +167,11 @@
   box-sizing: border-box;
 }
 
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
@@ -181,6 +186,9 @@ body {
 #root {
   width: 100vw;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* ===== FLOW LIST ===== */
@@ -313,45 +321,22 @@ body {
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100vh;
+  flex: 1;
+  overflow: hidden;
   background-color: var(--bg-page);
-}
-
-.flow-builder-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1.5rem;
-  background-color: var(--bg-surface);
-  border-bottom: 1px solid var(--border);
-  transition: background-color 0.3s;
-}
-
-.flow-builder-header h2 {
-  color: var(--text-primary);
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.flow-builder-actions {
-  display: flex;
-  gap: 0.75rem;
 }
 
 /* ===== SIDEBAR ===== */
 
 .flow-builder-sidebar {
   width: 260px;
-  flex: 1;
   background-color: var(--bg-surface);
   border-right: 1px solid var(--border);
   padding: 1rem;
   overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
   transition: background-color 0.3s;
-}
-
-.flow-builder-content {
-  position: relative;
 }
 
 .flow-builder-sidebar::-webkit-scrollbar {
@@ -375,11 +360,13 @@ body {
   display: flex;
   flex: 1;
   overflow: hidden;
+  position: relative;
 }
 
 .flow-builder-canvas {
   flex: 1;
   position: relative;
+  height: 100%;
   background-color: var(--bg-page);
 }
 
