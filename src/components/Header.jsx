@@ -2,16 +2,11 @@ import { useNavigate } from 'react-router-dom'
 
 function Header() {
   const navigate = useNavigate()
-
-  // Busca informações do usuário do localStorage
   const userName = localStorage.getItem('user_name') || 'Usuário'
   const userAvatar = localStorage.getItem('user_avatar') || ''
-
-  // Pega apenas o primeiro nome
   const firstName = userName.split(' ')[0]
 
   const handleLogout = () => {
-    // Remove token e informações do usuário
     localStorage.removeItem('token')
     localStorage.removeItem('user_name')
     localStorage.removeItem('user_email')
@@ -22,16 +17,15 @@ function Header() {
 
   return (
     <header style={{
-      backgroundColor: '#fff',
-      borderBottom: '1px solid #e0e0e0',
-      padding: '1rem 2rem',
+      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+      padding: '0.75rem 2rem',
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
       position: 'sticky',
       top: 0,
       zIndex: 1000,
-      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+      boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
     }}>
       <div style={{
         display: 'flex',
@@ -43,14 +37,17 @@ function Header() {
           src="https://monitchat.nyc3.cdn.digitaloceanspaces.com/logo/logo-vipdesk-mobile.png"
           alt="VipDesk Logo"
           style={{
-            height: '45px',
-            width: 'auto'
+            height: '38px',
+            width: 'auto',
           }}
         />
         <span style={{
-          fontSize: '1.25rem',
-          fontWeight: 'bold',
-          color: '#2196F3'
+          fontSize: '1.2rem',
+          fontWeight: '700',
+          background: 'linear-gradient(135deg, #818cf8, #6366f1)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          letterSpacing: '-0.01em',
         }}>
           DeskFlow
         </span>
@@ -59,46 +56,45 @@ function Header() {
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '1rem'
+        gap: '0.75rem'
       }}>
         {userAvatar && (
           <img
             src={userAvatar}
             alt={firstName}
             style={{
-              width: '40px',
-              height: '40px',
+              width: '36px',
+              height: '36px',
               borderRadius: '50%',
               objectFit: 'cover',
-              border: '2px solid #2196F3'
+              border: '2px solid #6366f1',
             }}
             onError={(e) => {
-              // Se a imagem falhar ao carregar, substitui por iniciais
               e.target.style.display = 'none'
               e.target.nextSibling.style.display = 'flex'
             }}
           />
         )}
 
-        {/* Fallback para quando não há avatar ou falha ao carregar */}
         <div style={{
-          width: '40px',
-          height: '40px',
+          width: '36px',
+          height: '36px',
           borderRadius: '50%',
-          backgroundColor: '#2196F3',
+          background: 'linear-gradient(135deg, #6366f1, #818cf8)',
           color: 'white',
           display: userAvatar ? 'none' : 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           fontWeight: 'bold',
-          fontSize: '1rem'
+          fontSize: '0.9rem',
         }}>
           {firstName.charAt(0).toUpperCase()}
         </div>
 
         <span style={{
-          fontWeight: '600',
-          color: '#333'
+          fontWeight: '500',
+          color: '#cbd5e1',
+          fontSize: '0.9rem',
         }}>
           {firstName}
         </span>
@@ -106,18 +102,27 @@ function Header() {
         <button
           onClick={handleLogout}
           style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: '#f44336',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
+            padding: '0.4rem 0.9rem',
+            backgroundColor: 'transparent',
+            color: '#94a3b8',
+            border: '1px solid #334155',
+            borderRadius: '6px',
             cursor: 'pointer',
-            fontWeight: '600',
-            fontSize: '0.9rem',
-            transition: 'background-color 0.2s'
+            fontWeight: '500',
+            fontSize: '0.8rem',
+            transition: 'all 0.2s',
+            marginLeft: '0.25rem',
           }}
-          onMouseEnter={(e) => e.target.style.backgroundColor = '#d32f2f'}
-          onMouseLeave={(e) => e.target.style.backgroundColor = '#f44336'}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = '#dc2626'
+            e.target.style.borderColor = '#dc2626'
+            e.target.style.color = '#fff'
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = 'transparent'
+            e.target.style.borderColor = '#334155'
+            e.target.style.color = '#94a3b8'
+          }}
         >
           Sair
         </button>
