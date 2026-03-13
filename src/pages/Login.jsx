@@ -5,7 +5,7 @@ import axios from 'axios'
 const styles = {
   page: {
     display: 'flex',
-    minHeight: '100vh',
+    height: '100vh',
     fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   },
   leftPanel: {

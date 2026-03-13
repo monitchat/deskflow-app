@@ -5,7 +5,8 @@ import Header from '../components/Header'
 
 const styles = {
   page: {
-    minHeight: '100vh',
+    flex: 1,
+    overflow: 'auto',
     backgroundColor: 'var(--bg-page)',
     transition: 'background-color 0.3s',
   },
