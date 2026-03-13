@@ -206,7 +206,7 @@ function CustomNode({ data, type, selected, id }) {
               {data.label || 'Router'}
             </div>
             {options.length > 0 ? (
-              <div style={{ fontSize: '0.75rem', color: '#666' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--node-content-dim)' }}>
                 {options.map((opt, idx) => (
                   <div
                     key={opt.id}
@@ -214,7 +214,7 @@ function CustomNode({ data, type, selected, id }) {
                       display: 'flex',
                       alignItems: 'center',
                       height: '24px',
-                      borderBottom: idx < options.length - 1 ? '1px solid #eee' : 'none'
+                      borderBottom: idx < options.length - 1 ? '1px solid var(--node-separator)' : 'none'
                     }}
                   >
                     <div
@@ -237,7 +237,7 @@ function CustomNode({ data, type, selected, id }) {
                     display: 'flex',
                     alignItems: 'center',
                     height: '24px',
-                    borderTop: '1px solid #eee'
+                    borderTop: '1px solid var(--node-separator)'
                   }}
                 >
                   <div
@@ -250,11 +250,11 @@ function CustomNode({ data, type, selected, id }) {
                       flexShrink: 0
                     }}
                   ></div>
-                  <span style={{ fontStyle: 'italic', color: '#999' }}>erro</span>
+                  <span style={{ fontStyle: 'italic', color: 'var(--text-dim)' }}>erro</span>
                 </div>
               </div>
             ) : (
-              <small style={{ color: '#999', fontSize: '0.7rem' }}>
+              <small style={{ color: 'var(--text-dim)', fontSize: '0.7rem' }}>
                 Sem opções configuradas
               </small>
             )}
@@ -293,7 +293,7 @@ function CustomNode({ data, type, selected, id }) {
               >
                 {method}
               </span>
-              <small style={{ fontSize: '0.7rem', color: '#666' }}>
+              <small style={{ fontSize: '0.7rem', color: 'var(--node-content-dim)' }}>
                 → {data.context_key || 'api_response'}
               </small>
             </div>
@@ -325,13 +325,13 @@ function CustomNode({ data, type, selected, id }) {
               {data.label || 'Transferir'}
             </div>
             <small>Dept: {data.department_id || 'N/A'}</small>
-            <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.3rem' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--node-content-dim)', marginTop: '0.3rem' }}>
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   padding: '0.2rem 0',
-                  borderBottom: '1px solid #eee'
+                  borderBottom: '1px solid var(--node-separator)'
                 }}
               >
                 <div
@@ -363,7 +363,7 @@ function CustomNode({ data, type, selected, id }) {
                     flexShrink: 0
                   }}
                 ></div>
-                <span style={{ fontStyle: 'italic', color: '#999' }}>erro</span>
+                <span style={{ fontStyle: 'italic', color: 'var(--text-dim)' }}>erro</span>
               </div>
             </div>
           </div>
@@ -411,7 +411,7 @@ function CustomNode({ data, type, selected, id }) {
               {data.label || 'AI Router'} {providerIcons[provider]}
             </div>
             {intents.length > 0 || enableResponse ? (
-              <div style={{ fontSize: '0.75rem', color: '#666' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--node-content-dim)' }}>
                 {intents.map((intent, idx) => (
                   <div
                     key={intent.id}
@@ -419,7 +419,7 @@ function CustomNode({ data, type, selected, id }) {
                       display: 'flex',
                       alignItems: 'center',
                       height: '24px',
-                      borderBottom: '1px solid #eee'
+                      borderBottom: '1px solid var(--node-separator)'
                     }}
                   >
                     <div
@@ -443,7 +443,7 @@ function CustomNode({ data, type, selected, id }) {
                       display: 'flex',
                       alignItems: 'center',
                       height: '24px',
-                      borderBottom: '1px solid #eee'
+                      borderBottom: '1px solid var(--node-separator)'
                     }}
                   >
                     <div
@@ -465,7 +465,7 @@ function CustomNode({ data, type, selected, id }) {
                       display: 'flex',
                       alignItems: 'center',
                       height: '24px',
-                      borderTop: '1px solid #eee'
+                      borderTop: '1px solid var(--node-separator)'
                     }}
                   >
                     <div
@@ -478,12 +478,12 @@ function CustomNode({ data, type, selected, id }) {
                         flexShrink: 0
                       }}
                     ></div>
-                    <span style={{ fontStyle: 'italic', color: '#999' }}>erro</span>
+                    <span style={{ fontStyle: 'italic', color: 'var(--text-dim)' }}>erro</span>
                   </div>
                 )}
               </div>
             ) : (
-              <small style={{ color: '#999', fontSize: '0.7rem' }}>
+              <small style={{ color: 'var(--text-dim)', fontSize: '0.7rem' }}>
                 Sem intenções configuradas
               </small>
             )}
@@ -503,15 +503,15 @@ function CustomNode({ data, type, selected, id }) {
               {data.label || 'Agente IA'} {agentProviderIcons[agentProvider]}
             </div>
             {data.prompt ? (
-              <div style={{ fontSize: '0.7rem', color: '#666', marginBottom: '0.3rem' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--node-content-dim)', marginBottom: '0.3rem' }}>
                 <em>{data.prompt.substring(0, 60)}{data.prompt.length > 60 ? '...' : ''}</em>
               </div>
             ) : (
-              <small style={{ color: '#999', fontSize: '0.7rem' }}>Sem prompt configurado</small>
+              <small style={{ color: 'var(--text-dim)', fontSize: '0.7rem' }}>Sem prompt configurado</small>
             )}
             {agentTools.length > 0 && (
-              <div style={{ fontSize: '0.75rem', color: '#666', borderTop: '1px solid #eee', paddingTop: '0.3rem', marginTop: '0.3rem' }}>
-                <div style={{ fontWeight: '500', marginBottom: '0.2rem', color: '#555' }}>🔧 Tools ({agentTools.length})</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--node-content-dim)', borderTop: '1px solid var(--node-separator)', paddingTop: '0.3rem', marginTop: '0.3rem' }}>
+                <div style={{ fontWeight: '500', marginBottom: '0.2rem', color: 'var(--node-content-muted)' }}>🔧 Tools ({agentTools.length})</div>
                 {agentTools.map((tool, idx) => (
                   <div
                     key={idx}
@@ -558,16 +558,16 @@ function CustomNode({ data, type, selected, id }) {
               {data.name || 'Tool'} {toolTypeIcons[toolType]}
             </div>
             {data.description && (
-              <div style={{ fontSize: '0.7rem', color: '#666', marginBottom: '0.3rem' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--node-content-dim)', marginBottom: '0.3rem' }}>
                 <em>{data.description.substring(0, 50)}{data.description.length > 50 ? '...' : ''}</em>
               </div>
             )}
-            <div style={{ fontSize: '0.7rem', color: '#999' }}>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
               {toolTypeLabels[toolType] || toolType}
               {toolType === 'http_request' && data.method && ` • ${data.method}`}
             </div>
             {toolType === 'http_request' && data.url && (
-              <div style={{ fontSize: '0.65rem', color: '#aaa', marginTop: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', marginTop: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }}>
                 {data.url}
               </div>
             )}
@@ -698,12 +698,12 @@ function CustomNode({ data, type, selected, id }) {
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                  <span style={{ color: '#999', fontSize: '0.65rem' }}>
+                  <span style={{ color: 'var(--text-dim)', fontSize: '0.65rem' }}>
                     {execResult.timestamp}
                   </span>
                   <span style={{
                     fontSize: '0.6rem',
-                    color: '#999',
+                    color: 'var(--text-dim)',
                     transform: showDetails ? 'rotate(180deg)' : 'rotate(0deg)',
                     transition: 'transform 0.2s',
                   }}>
@@ -716,18 +716,18 @@ function CustomNode({ data, type, selected, id }) {
               {showDetails && (
                 <div style={{
                   padding: '0.4rem 0.5rem',
-                  backgroundColor: '#fff',
+                  backgroundColor: 'var(--bg-surface)',
                   borderTop: `1px solid ${execResult.success ? '#C8E6C9' : '#FFCDD2'}`,
                 }}>
                   {execResult.error && (
                     <div style={{ marginBottom: '0.3rem' }}>
-                      <span style={{ color: '#888', fontWeight: '600' }}>Motivo: </span>
-                      <span style={{ color: '#333' }}>{execResult.error}</span>
+                      <span style={{ color: 'var(--node-content-muted)', fontWeight: '600' }}>Motivo: </span>
+                      <span style={{ color: 'var(--node-content-color)' }}>{execResult.error}</span>
                     </div>
                   )}
                   {execResult.status_code && (
                     <div style={{ marginBottom: '0.3rem' }}>
-                      <span style={{ color: '#888', fontWeight: '600' }}>HTTP: </span>
+                      <span style={{ color: 'var(--node-content-muted)', fontWeight: '600' }}>HTTP: </span>
                       <span style={{
                         backgroundColor: execResult.status_code >= 400 ? '#FFEBEE' : '#E8F5E9',
                         color: execResult.status_code >= 400 ? '#C62828' : '#2E7D32',
@@ -742,11 +742,11 @@ function CustomNode({ data, type, selected, id }) {
                   )}
                   {execResult.api_response && (
                     <div>
-                      <span style={{ color: '#888', fontWeight: '600' }}>Response: </span>
+                      <span style={{ color: 'var(--node-content-muted)', fontWeight: '600' }}>Response: </span>
                       <pre style={{
                         margin: '0.2rem 0 0 0',
                         padding: '0.3rem',
-                        backgroundColor: '#F5F5F5',
+                        backgroundColor: 'var(--bg-input)',
                         borderRadius: '3px',
                         fontSize: '0.65rem',
                         fontFamily: 'monospace',
@@ -754,7 +754,7 @@ function CustomNode({ data, type, selected, id }) {
                         wordBreak: 'break-all',
                         maxHeight: '80px',
                         overflow: 'auto',
-                        color: '#333',
+                        color: 'var(--node-content-color)',
                       }}>
                         {typeof execResult.api_response === 'object'
                           ? JSON.stringify(execResult.api_response, null, 2)
