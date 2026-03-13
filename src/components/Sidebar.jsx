@@ -114,11 +114,37 @@ const nodeDefinitions = [
   },
 ]
 
-function Sidebar() {
+function Sidebar({ sidebarPinned, onTogglePin }) {
   return (
     <div className="flow-builder-sidebar">
       <div className="sidebar-section">
-        <h3>Componentes</h3>
+        <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          Componentes
+          {onTogglePin && (
+            <button
+              onClick={onTogglePin}
+              title={sidebarPinned ? 'Desafixar sidebar' : 'Fixar sidebar'}
+              style={{
+                width: '22px',
+                height: '22px',
+                padding: 0,
+                backgroundColor: 'transparent',
+                color: sidebarPinned ? 'var(--accent)' : 'var(--text-dim)',
+                border: '1px solid var(--border)',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                fontSize: '0.65rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s',
+                transform: sidebarPinned ? 'rotate(0deg)' : 'rotate(45deg)',
+              }}
+            >
+              {'\uD83D\uDCCC'}
+            </button>
+          )}
+        </h3>
         <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '0.75rem' }}>
           Arraste os componentes para o canvas
         </p>
