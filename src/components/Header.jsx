@@ -40,8 +40,8 @@ function Header() {
         cursor: 'pointer'
       }} onClick={() => navigate('/')}>
         <img
-          src="https://www.monitchat.com/logo/monitchat/logo-quadrada.png"
-          alt="MonitChat Logo"
+          src="https://monitchat.nyc3.cdn.digitaloceanspaces.com/logo/logo-vipdesk-mobile.png"
+          alt="VipDesk Logo"
           style={{
             height: '45px',
             width: 'auto'
@@ -52,7 +52,7 @@ function Header() {
           fontWeight: 'bold',
           color: '#2196F3'
         }}>
-          Monitchat Flow
+          DeskFlow
         </span>
       </div>
 
