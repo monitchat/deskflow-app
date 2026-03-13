@@ -767,25 +767,23 @@ function FlowBuilderInner() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '100%' }}>
           {/* Esquerda: voltar + nome + descrição */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
-            {!isEmbedded && (
-              <button
-                onClick={() => navigate('/')}
-                style={{
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-dim)',
-                  cursor: 'pointer',
-                  fontSize: '1rem',
-                  padding: '0.2rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  flexShrink: 0,
-                }}
-                title="Voltar"
-              >
-                {'\u2190'}
-              </button>
-            )}
+            <button
+              onClick={() => navigate('/')}
+              style={{
+                backgroundColor: 'transparent',
+                border: 'none',
+                color: 'var(--text-dim)',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                padding: '0.2rem',
+                display: 'flex',
+                alignItems: 'center',
+                flexShrink: 0,
+              }}
+              title="Voltar"
+            >
+              {'\u2190'}
+            </button>
             <div style={{ minWidth: 0, flex: 1 }}>
               <input
                 type="text"
@@ -934,19 +932,15 @@ function FlowBuilderInner() {
                   >
                     <span>Importar JSON</span>
                   </button>
-                  {!isEmbedded && (
-                    <>
-                      <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.3rem 0' }} />
-                      <button
-                        style={{ ...menuItemStyle, color: 'var(--text-dim)' }}
-                        onClick={() => { setShowMenu(false); navigate('/') }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                      >
-                        <span>Voltar para lista</span>
-                      </button>
-                    </>
-                  )}
+                  <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.3rem 0' }} />
+                  <button
+                    style={{ ...menuItemStyle, color: 'var(--text-dim)' }}
+                    onClick={() => { setShowMenu(false); navigate('/') }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <span>Voltar para lista</span>
+                  </button>
                 </div>
               )}
             </div>
