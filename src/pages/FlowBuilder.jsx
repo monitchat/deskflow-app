@@ -617,221 +617,343 @@ function FlowBuilderInner() {
     }
   }
 
+  const [showMenu, setShowMenu] = useState(false)
+  const menuRef = useRef(null)
+
+  // Fecha menu ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setShowMenu(false)
+      }
+    }
+    if (showMenu) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showMenu])
+
+  const handleExport = async () => {
+    setShowMenu(false)
+    let secretKeys = []
+    try {
+      const resp = await api.get(`/api/v1/flows/${flowId}/secrets`)
+      if (resp.data.success && resp.data.data.secrets) {
+        secretKeys = Object.keys(resp.data.data.secrets)
+      }
+    } catch (e) {
+      console.error('Error fetching secrets for export:', e)
+    }
+    const flowData = {
+      name: flowName,
+      description: flowDescription,
+      nodes,
+      edges,
+      secrets: secretKeys,
+      metadata: {
+        version: '1.0.0',
+        exported_at: new Date().toISOString(),
+      },
+    }
+    const blob = new Blob([JSON.stringify(flowData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${flowName.replace(/\s+/g, '_').toLowerCase()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImport = () => {
+    setShowMenu(false)
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json'
+    input.onchange = (e) => {
+      const file = e.target.files[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        try {
+          const flowData = JSON.parse(ev.target.result)
+          if (!flowData.nodes || !flowData.edges) {
+            alert('Arquivo inválido: não contém nodes ou edges')
+            return
+          }
+          const secretsWarning = flowData.secrets?.length
+            ? `\n\nCredenciais necessárias (${flowData.secrets.length}):\n${flowData.secrets.map(s => '  - ' + s).join('\n')}\n\nVocê precisará configurá-las em "Credenciais" após importar.`
+            : ''
+          const confirmImport = window.confirm(
+            `Importar fluxo "${flowData.name || 'Sem nome'}"?\n\nIsso substituirá todo o fluxo atual.${secretsWarning}`
+          )
+          if (!confirmImport) return
+          if (flowData.name) setFlowName(flowData.name)
+          if (flowData.description) setFlowDescription(flowData.description)
+          setNodes(flowData.nodes)
+          setEdges(flowData.edges)
+        } catch (err) {
+          alert('Erro ao ler arquivo: ' + err.message)
+        }
+      }
+      reader.readAsText(file)
+    }
+    input.click()
+  }
+
+  const handlePlayground = async () => {
+    setShowMenu(false)
+    if (showPlayground) {
+      setShowPlayground(false)
+      return
+    }
+    const flowData = {
+      nodes,
+      edges,
+      metadata: {
+        version: '1.0.0',
+        updated_at: new Date().toISOString(),
+      },
+    }
+    try {
+      if (flowId && flowId !== 'new') {
+        await api.put(`/api/v1/flows/${flowId}`, {
+          name: flowName,
+          description: flowDescription,
+          data: flowData,
+        })
+        setLastSaved(new Date())
+      } else {
+        const companyId = localStorage.getItem('user_company_id')
+        const response = await api.post('/api/v1/flows', {
+          name: flowName,
+          description: flowDescription,
+          data: flowData,
+          is_active: false,
+          company_id: companyId ? parseInt(companyId) : null,
+        })
+        navigate(`/flow/${response.data.data.id}`)
+        return
+      }
+    } catch (error) {
+      console.error('Error saving flow before playground:', error)
+      alert('Erro ao salvar fluxo. Salve manualmente antes de testar.')
+      return
+    }
+    setShowPlayground(true)
+  }
+
+  const menuItemStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    width: '100%',
+    padding: '0.5rem 0.75rem',
+    backgroundColor: 'transparent',
+    color: 'var(--text-secondary)',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '0.82rem',
+    fontWeight: '500',
+    textAlign: 'left',
+    transition: 'background-color 0.15s',
+    whiteSpace: 'nowrap',
+  }
+
+  const isEmbedded = localStorage.getItem('deskflow-embedded') === 'true'
+
   return (
     <>
-      <Header />
-      <div className="flow-builder">
-        <div className="flow-builder-header">
-        <div>
-          <input
-            type="text"
-            value={flowName}
-            onChange={(e) => setFlowName(e.target.value)}
-            style={{
-              fontSize: '1.5rem',
-              border: 'none',
-              background: 'transparent',
-              fontWeight: 'bold',
-              marginBottom: '0.5rem',
-            }}
-          />
-          <br />
-          <input
-            type="text"
-            value={flowDescription}
-            onChange={(e) => setFlowDescription(e.target.value)}
-            placeholder="Descrição do fluxo"
-            style={{
-              fontSize: '0.9rem',
-              border: 'none',
-              background: 'transparent',
-              color: '#666',
-              width: '400px',
-            }}
-          />
-        </div>
+      <Header>
+        {/* Conteúdo do flow builder integrado no header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '100%' }}>
+          {/* Esquerda: voltar + nome + descrição */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+            {!isEmbedded && (
+              <button
+                onClick={() => navigate('/')}
+                style={{
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-dim)',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  padding: '0.2rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  flexShrink: 0,
+                }}
+                title="Voltar"
+              >
+                {'\u2190'}
+              </button>
+            )}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <input
+                type="text"
+                value={flowName}
+                onChange={(e) => setFlowName(e.target.value)}
+                style={{
+                  fontSize: '0.9rem',
+                  border: 'none',
+                  background: 'transparent',
+                  fontWeight: '700',
+                  color: 'var(--text-primary)',
+                  width: '100%',
+                  outline: 'none',
+                  padding: '0',
+                  lineHeight: 1.2,
+                }}
+              />
+              <input
+                type="text"
+                value={flowDescription}
+                onChange={(e) => setFlowDescription(e.target.value)}
+                placeholder="Descrição do fluxo"
+                style={{
+                  fontSize: '0.68rem',
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'var(--text-dim)',
+                  width: '100%',
+                  outline: 'none',
+                  padding: '0',
+                }}
+              />
+            </div>
+          </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          {/* Auto-save toggle */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={autoSaveEnabled}
-              onChange={(e) => setAutoSaveEnabled(e.target.checked)}
-              style={{ cursor: 'pointer' }}
-            />
-            <span>Salvar automaticamente</span>
-          </label>
+          {/* Centro: status de salvamento */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', cursor: 'pointer', color: 'var(--text-dim)' }}>
+              <input
+                type="checkbox"
+                checked={autoSaveEnabled}
+                onChange={(e) => setAutoSaveEnabled(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+              />
+              Auto-save
+            </label>
+            {autoSaveEnabled && (
+              <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>
+                {saving ? 'Salvando...' : lastSaved ? new Date(lastSaved).toLocaleTimeString() : null}
+              </div>
+            )}
+          </div>
 
-          {/* Save indicator */}
-          {autoSaveEnabled && (
-            <div style={{ fontSize: '0.75rem', color: '#666', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-              {saving ? (
-                <>⏳ Salvando...</>
-              ) : lastSaved ? (
-                <>✅ Salvo {new Date(lastSaved).toLocaleTimeString()}</>
-              ) : (
-                <>💾 Aguardando alterações...</>
+          {/* Direita: botões de ação + menu */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+            <button className="btn btn-success" onClick={handleSave} style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem' }}>
+              Salvar
+            </button>
+
+            {/* Menu dropdown */}
+            <div ref={menuRef} style={{ position: 'relative' }}>
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  padding: 0,
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-muted)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--accent)'
+                  e.currentTarget.style.color = 'var(--accent)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--border)'
+                  e.currentTarget.style.color = 'var(--text-muted)'
+                }}
+                title="Menu"
+              >
+                {'\u22EE'}
+              </button>
+
+              {showMenu && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '0.4rem',
+                  backgroundColor: 'var(--bg-surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '10px',
+                  padding: '0.4rem',
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
+                  zIndex: 1100,
+                  minWidth: '180px',
+                }}>
+                  <button
+                    style={menuItemStyle}
+                    onClick={handlePlayground}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <span>Playground</span>
+                    {showPlayground && <span style={{ color: '#22c55e', fontSize: '0.7rem' }}>(ativo)</span>}
+                  </button>
+                  <button
+                    style={menuItemStyle}
+                    onClick={() => { setShowMenu(false); setShowDebugPanel(!showDebugPanel) }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <span>Debug</span>
+                    {showDebugPanel && <span style={{ color: '#22c55e', fontSize: '0.7rem' }}>(ativo)</span>}
+                  </button>
+                  <button
+                    style={menuItemStyle}
+                    onClick={() => { setShowMenu(false); setShowSecrets(true) }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <span>Credenciais</span>
+                  </button>
+                  <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.3rem 0' }} />
+                  <button
+                    style={menuItemStyle}
+                    onClick={handleExport}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <span>Exportar JSON</span>
+                  </button>
+                  <button
+                    style={menuItemStyle}
+                    onClick={handleImport}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <span>Importar JSON</span>
+                  </button>
+                  {!isEmbedded && (
+                    <>
+                      <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.3rem 0' }} />
+                      <button
+                        style={{ ...menuItemStyle, color: 'var(--text-dim)' }}
+                        onClick={() => { setShowMenu(false); navigate('/') }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <span>Voltar para lista</span>
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
             </div>
-          )}
+          </div>
         </div>
-
-        <div className="flow-builder-actions">
-          <button
-            className="btn btn-secondary"
-            onClick={async () => {
-              let secretKeys = []
-              try {
-                const resp = await api.get(`/api/v1/flows/${flowId}/secrets`)
-                if (resp.data.success && resp.data.data.secrets) {
-                  secretKeys = Object.keys(resp.data.data.secrets)
-                }
-              } catch (e) {
-                console.error('Error fetching secrets for export:', e)
-              }
-              const flowData = {
-                name: flowName,
-                description: flowDescription,
-                nodes,
-                edges,
-                secrets: secretKeys,
-                metadata: {
-                  version: '1.0.0',
-                  exported_at: new Date().toISOString(),
-                },
-              }
-              const blob = new Blob([JSON.stringify(flowData, null, 2)], { type: 'application/json' })
-              const url = URL.createObjectURL(blob)
-              const a = document.createElement('a')
-              a.href = url
-              a.download = `${flowName.replace(/\s+/g, '_').toLowerCase()}.json`
-              a.click()
-              URL.revokeObjectURL(url)
-            }}
-            style={{ marginRight: '0.5rem' }}
-          >
-            📤 Exportar
-          </button>
-          <button
-            className="btn btn-secondary"
-            onClick={() => {
-              const input = document.createElement('input')
-              input.type = 'file'
-              input.accept = '.json'
-              input.onchange = (e) => {
-                const file = e.target.files[0]
-                if (!file) return
-                const reader = new FileReader()
-                reader.onload = (ev) => {
-                  try {
-                    const flowData = JSON.parse(ev.target.result)
-                    if (!flowData.nodes || !flowData.edges) {
-                      alert('Arquivo inválido: não contém nodes ou edges')
-                      return
-                    }
-                    const secretsWarning = flowData.secrets?.length
-                      ? `\n\nCredenciais necessárias (${flowData.secrets.length}):\n${flowData.secrets.map(s => '  - ' + s).join('\n')}\n\nVocê precisará configurá-las em "Credenciais" após importar.`
-                      : ''
-                    const confirmImport = window.confirm(
-                      `Importar fluxo "${flowData.name || 'Sem nome'}"?\n\nIsso substituirá todo o fluxo atual.${secretsWarning}`
-                    )
-                    if (!confirmImport) return
-                    if (flowData.name) setFlowName(flowData.name)
-                    if (flowData.description) setFlowDescription(flowData.description)
-                    setNodes(flowData.nodes)
-                    setEdges(flowData.edges)
-                  } catch (err) {
-                    alert('Erro ao ler arquivo: ' + err.message)
-                  }
-                }
-                reader.readAsText(file)
-              }
-              input.click()
-            }}
-            style={{ marginRight: '0.5rem' }}
-          >
-            📥 Importar
-          </button>
-          <button
-            className="btn btn-secondary"
-            onClick={() => setShowSecrets(true)}
-            style={{
-              marginRight: '0.5rem',
-            }}
-          >
-            Credenciais
-          </button>
-          <button
-            className="btn btn-secondary"
-            onClick={() => setShowDebugPanel(!showDebugPanel)}
-            style={{
-              marginRight: '0.5rem',
-              backgroundColor: showDebugPanel ? '#4CAF50' : undefined,
-              color: showDebugPanel ? '#fff' : undefined,
-            }}
-          >
-            🔍 Debug
-          </button>
-          <button
-            className="btn btn-primary"
-            onClick={async () => {
-              if (showPlayground) {
-                setShowPlayground(false)
-                return
-              }
-              // Salva o flow antes de abrir o Playground
-              const flowData = {
-                nodes,
-                edges,
-                metadata: {
-                  version: '1.0.0',
-                  updated_at: new Date().toISOString(),
-                },
-              }
-              try {
-                if (flowId && flowId !== 'new') {
-                  await api.put(`/api/v1/flows/${flowId}`, {
-                    name: flowName,
-                    description: flowDescription,
-                    data: flowData,
-                  })
-                  setLastSaved(new Date())
-                } else {
-                  const companyId = localStorage.getItem('user_company_id')
-                  const response = await api.post('/api/v1/flows', {
-                    name: flowName,
-                    description: flowDescription,
-                    data: flowData,
-                    is_active: false,
-                    company_id: companyId ? parseInt(companyId) : null,
-                  })
-                  navigate(`/flow/${response.data.data.id}`)
-                  return // navigate vai recarregar, o user abre o playground depois
-                }
-              } catch (error) {
-                console.error('Error saving flow before playground:', error)
-                alert('Erro ao salvar fluxo. Salve manualmente antes de testar.')
-                return
-              }
-              setShowPlayground(true)
-            }}
-            style={{
-              marginRight: '0.5rem',
-              backgroundColor: showPlayground ? '#25D366' : undefined,
-              color: showPlayground ? '#fff' : undefined,
-            }}
-          >
-            🎮 Playground
-          </button>
-          <button className="btn btn-secondary" onClick={() => navigate('/')}>
-            Voltar
-          </button>
-          <button className="btn btn-success" onClick={handleSave}>
-            Salvar Fluxo
-          </button>
-        </div>
-      </div>
+      </Header>
+      <div className="flow-builder">
 
       <div className="flow-builder-content">
         {/* Aba visível para abrir sidebar quando escondida */}
