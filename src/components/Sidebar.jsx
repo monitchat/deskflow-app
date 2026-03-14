@@ -28,13 +28,7 @@ const nodeDefinitions = [
     icon: '⌨️',
     description: 'Recebe e valida input do usuário',
   },
-  {
-    type: 'condition',
-    label: 'Condição',
-    icon: '🔀',
-    description: 'Direciona o fluxo baseado em condições',
-  },
-  {
+{
     type: 'router',
     label: 'Router Inteligente',
     icon: '🎯',
@@ -58,13 +52,7 @@ const nodeDefinitions = [
     icon: '🔧',
     description: 'Ferramenta conectável a um Agente IA',
   },
-  {
-    type: 'api_call',
-    label: 'Chamada API',
-    icon: '🔌',
-    description: 'Faz uma chamada para API externa',
-  },
-  {
+{
     type: 'api_request',
     label: 'API Request',
     icon: '🌐',
