@@ -913,7 +913,7 @@ function FlowBuilderInner() {
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   >
-                    <span>Credenciais</span>
+                    <span>Variáveis de Ambiente</span>
                   </button>
                   <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.3rem 0' }} />
                   <button
