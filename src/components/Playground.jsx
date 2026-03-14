@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
+import { useTheme } from '../contexts/ThemeContext'
 import api from '../config/axios'
 
 function Playground({ flowId, onClose }) {
+  const { theme } = useTheme()
   const [sessions, setSessions] = useState([])
   const [selectedSession, setSelectedSession] = useState(null)
   const [messages, setMessages] = useState([])
@@ -28,20 +30,14 @@ function Playground({ flowId, onClose }) {
   // Cria nova sessão
   const createNewSession = async () => {
     try {
-      // Passa o flow_id para criar a sessão no flow correto
       const response = await api.post('/api/v1/flows/playground/session', {
         flow_id: flowId
       })
       const newMsisdn = response.data.data.msisdn
 
-      // Adiciona à lista
       await loadSessions()
-
-      // Seleciona a nova sessão
       setSelectedSession(newMsisdn)
       setMessages([])
-
-      // Foca no input para o usuário digitar
       setTimeout(() => inputRef.current?.focus(), 100)
     } catch (error) {
       console.error('Error creating session:', error)
@@ -52,7 +48,6 @@ function Playground({ flowId, onClose }) {
   // Deleta sessão atual
   const deleteCurrentSession = async () => {
     if (!selectedSession) return
-
     if (!confirm(`Deseja deletar a sessão ${selectedSession}?`)) return
 
     try {
@@ -73,7 +68,6 @@ function Playground({ flowId, onClose }) {
       return
     }
 
-    // Adiciona mensagem do usuário (se não for mensagem inicial vazia)
     if (text.trim() || buttonId) {
       setMessages(prev => [...prev, {
         type: 'user',
@@ -95,7 +89,6 @@ function Playground({ flowId, onClose }) {
 
       const replies = response.data.data.replies || []
 
-      // Notifica o canvas sobre resultados de execução de nós
       replies.forEach(reply => {
         if (reply.type === 'debug' && reply.node_id) {
           window.dispatchEvent(new CustomEvent('nodeExecutionResult', {
@@ -122,7 +115,6 @@ function Playground({ flowId, onClose }) {
         }
       })
 
-      // Adiciona respostas do bot (filtra debug do chat)
       const botMessages = replies
         .filter(reply => reply.type !== 'debug' && reply.type !== 'transfer_success' && reply.type !== 'end')
         .map(reply => ({
@@ -141,17 +133,14 @@ function Playground({ flowId, onClose }) {
       }])
     } finally {
       setLoading(false)
-      // Retorna o foco ao input após enviar
       setTimeout(() => inputRef.current?.focus(), 100)
     }
   }
 
-  // Scroll automático para última mensagem
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Carrega sessões ao montar
   useEffect(() => {
     loadSessions()
   }, [])
@@ -167,13 +156,10 @@ function Playground({ flowId, onClose }) {
 
         if (pendingMessages.length > 0) {
           console.log('📨 Received pending messages:', pendingMessages)
-
-          // Adiciona todas as mensagens pendentes de uma vez
           const newMessages = pendingMessages.map(msg => ({
-            type: 'bot',  // Usa 'type' ao invés de 'sender' para compatibilidade
+            type: 'bot',
             data: msg
           }))
-
           setMessages(prev => [...prev, ...newMessages])
           console.log('✅ Added', newMessages.length, 'messages to chat')
         }
@@ -182,11 +168,8 @@ function Playground({ flowId, onClose }) {
       }
     }
 
-    // Busca imediatamente e depois a cada 2 segundos
     pollPendingMessages()
     const intervalId = setInterval(pollPendingMessages, 2000)
-
-    // Limpa o intervalo quando o componente desmonta ou muda de sessão
     return () => clearInterval(intervalId)
   }, [selectedSession, flowId])
 
@@ -194,40 +177,31 @@ function Playground({ flowId, onClose }) {
   const renderBotMessage = (messageData) => {
     const { type, text, body, header, footer, buttons, sections, items, url, file_name, message: caption } = messageData.data
 
-    // Renderiza card de debug (erros de nós)
     if (type === 'debug') {
       const { title, error, status_code, api_response, node_id, department_id } = messageData.data
       return (
-        <div style={{
-          backgroundColor: '#FFF3E0',
-          border: '1px solid #FF9800',
-          borderLeft: '4px solid #F44336',
-          padding: '0.75rem',
-          borderRadius: '8px',
-          maxWidth: '90%',
-          fontSize: '0.8rem',
-        }}>
-          <div style={{ fontWeight: 'bold', color: '#E65100', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        <div className="pg-bubble pg-bubble-debug">
+          <div className="pg-debug-title">
             <span>⚠️</span> {title || 'Erro'}
           </div>
-          <div style={{ color: '#333', marginBottom: '0.25rem' }}>
+          <div className="pg-debug-row">
             <strong>Motivo:</strong> {error}
           </div>
           {status_code && (
-            <div style={{ color: '#666', marginBottom: '0.25rem' }}>
+            <div className="pg-debug-row pg-debug-muted">
               <strong>Status HTTP:</strong> {status_code}
             </div>
           )}
           {api_response && (
-            <div style={{ color: '#666', marginBottom: '0.25rem' }}>
+            <div className="pg-debug-row pg-debug-muted">
               <strong>Response:</strong>{' '}
-              <code style={{ backgroundColor: '#fff', padding: '0.15rem 0.3rem', borderRadius: '3px', fontSize: '0.75rem', wordBreak: 'break-all' }}>
+              <code className="pg-debug-code">
                 {typeof api_response === 'object' ? JSON.stringify(api_response) : api_response}
               </code>
             </div>
           )}
           {node_id && (
-            <div style={{ color: '#999', fontSize: '0.7rem', marginTop: '0.4rem', borderTop: '1px solid #FFE0B2', paddingTop: '0.3rem' }}>
+            <div className="pg-debug-footer">
               Node: {node_id}{department_id ? ` | Dept: ${department_id}` : ''}
             </div>
           )}
@@ -235,101 +209,60 @@ function Playground({ flowId, onClose }) {
       )
     }
 
-    // Renderiza mídia (document ou image)
     if (type === 'document' || type === 'image') {
       return (
-        <div style={{
-          backgroundColor: '#fff',
-          padding: '0.75rem',
-          borderRadius: '8px',
-          maxWidth: '80%',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-        }}>
+        <div className="pg-bubble pg-bubble-bot">
           {type === 'image' && url && (
             <img
               src={url}
               alt={caption || 'Imagem'}
-              style={{ maxWidth: '100%', borderRadius: '4px', marginBottom: caption ? '0.5rem' : 0 }}
+              className="pg-media-image"
               onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling && (e.target.nextSibling.style.display = 'flex') }}
             />
           )}
           {type === 'image' && url && (
-            <div style={{ display: 'none', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', backgroundColor: '#f5f5f5', borderRadius: '4px', marginBottom: caption ? '0.5rem' : 0 }}>
+            <div className="pg-media-fallback">
               <span>🖼️</span>
-              <a href={url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.85rem', color: '#1976D2', wordBreak: 'break-all' }}>
+              <a href={url} target="_blank" rel="noopener noreferrer" className="pg-media-link">
                 {file_name || 'Ver imagem'}
               </a>
             </div>
           )}
           {type === 'document' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', backgroundColor: '#f5f5f5', borderRadius: '4px', marginBottom: caption ? '0.5rem' : 0 }}>
+            <div className="pg-media-file">
               <span style={{ fontSize: '1.5rem' }}>📄</span>
-              <a href={url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.85rem', color: '#1976D2', wordBreak: 'break-all' }}>
+              <a href={url} target="_blank" rel="noopener noreferrer" className="pg-media-link">
                 {file_name || url || 'Download'}
               </a>
             </div>
           )}
           {caption && (
-            <div style={{ fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>{caption}</div>
+            <div className="pg-text">{caption}</div>
           )}
         </div>
       )
     }
 
     return (
-      <div style={{
-        backgroundColor: '#fff',
-        padding: '0.75rem',
-        borderRadius: '8px',
-        maxWidth: '80%',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-      }}>
-        {/* Header (para botões) */}
+      <div className="pg-bubble pg-bubble-bot">
         {header && (
-          <div style={{
-            fontSize: '0.85rem',
-            fontWeight: 'bold',
-            color: '#128C7E',
-            marginBottom: '0.5rem',
-            paddingBottom: '0.5rem',
-            borderBottom: '1px solid #e0e0e0',
-          }}>
-            {header}
-          </div>
+          <div className="pg-msg-header">{header}</div>
         )}
 
-        {/* Texto (mensagens simples) ou Body (mensagens de botão) */}
         {(text || body) && (
-          <div style={{
-            whiteSpace: 'pre-wrap',
-            marginBottom: buttons || sections ? '0.75rem' : '0',
-            fontSize: '0.9rem',
-          }}>
+          <div className="pg-text" style={{ marginBottom: buttons || sections ? '0.75rem' : '0' }}>
             {body || text}
           </div>
         )}
 
-        {/* Botões */}
         {buttons && buttons.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div className="pg-buttons">
             {buttons.map((button, idx) => (
               <button
                 key={idx}
                 onClick={() => sendMessage('', selectedSession, button.id)}
                 disabled={loading}
-                style={{
-                  padding: '0.6rem',
-                  backgroundColor: '#25D366',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  fontSize: '0.85rem',
-                  fontWeight: '500',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => !loading && (e.target.style.backgroundColor = '#128C7E')}
-                onMouseLeave={(e) => !loading && (e.target.style.backgroundColor = '#25D366')}
+                className="pg-btn pg-btn-action"
               >
                 {button.title}
               </button>
@@ -337,60 +270,27 @@ function Playground({ flowId, onClose }) {
           </div>
         )}
 
-        {/* Footer (para botões) */}
         {footer && (
-          <div style={{
-            fontSize: '0.75rem',
-            color: '#666',
-            marginTop: '0.5rem',
-            paddingTop: '0.5rem',
-            borderTop: '1px solid #e0e0e0',
-          }}>
-            {footer}
-          </div>
+          <div className="pg-msg-footer">{footer}</div>
         )}
 
-        {/* Lista */}
         {sections && sections.length > 0 && (
-          <div style={{ borderTop: '1px solid #eee', paddingTop: '0.75rem' }}>
+          <div className="pg-sections">
             {sections.map((section, sIdx) => (
-              <div key={sIdx} style={{ marginBottom: '0.75rem' }}>
+              <div key={sIdx} className="pg-section">
                 {section.title && (
-                  <div style={{
-                    fontSize: '0.75rem',
-                    fontWeight: 'bold',
-                    color: '#666',
-                    marginBottom: '0.5rem',
-                  }}>
-                    {section.title}
-                  </div>
+                  <div className="pg-section-title">{section.title}</div>
                 )}
                 {section.rows && section.rows.map((row, rIdx) => (
                   <button
                     key={rIdx}
                     onClick={() => sendMessage('', selectedSession, row.id)}
                     disabled={loading}
-                    style={{
-                      display: 'block',
-                      width: '100%',
-                      padding: '0.6rem',
-                      marginBottom: '0.4rem',
-                      backgroundColor: '#f5f5f5',
-                      border: '1px solid #ddd',
-                      borderRadius: '6px',
-                      cursor: loading ? 'not-allowed' : 'pointer',
-                      textAlign: 'left',
-                      fontSize: '0.85rem',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => !loading && (e.target.style.backgroundColor = '#e8e8e8')}
-                    onMouseLeave={(e) => !loading && (e.target.style.backgroundColor = '#f5f5f5')}
+                    className="pg-btn pg-btn-list"
                   >
                     <div style={{ fontWeight: '500' }}>{row.title}</div>
                     {row.description && (
-                      <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.25rem' }}>
-                        {row.description}
-                      </div>
+                      <div className="pg-btn-desc">{row.description}</div>
                     )}
                   </button>
                 ))}
@@ -399,25 +299,14 @@ function Playground({ flowId, onClose }) {
           </div>
         )}
 
-        {/* Items (opções de router) */}
         {items && items.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div className="pg-buttons">
             {items.map((item, idx) => (
               <button
                 key={idx}
                 onClick={() => sendMessage(item.value || item.label, selectedSession)}
                 disabled={loading}
-                style={{
-                  padding: '0.6rem',
-                  backgroundColor: '#f5f5f5',
-                  border: '1px solid #ddd',
-                  borderRadius: '6px',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  fontSize: '0.85rem',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => !loading && (e.target.style.backgroundColor = '#e8e8e8')}
-                onMouseLeave={(e) => !loading && (e.target.style.backgroundColor = '#f5f5f5')}
+                className="pg-btn pg-btn-list"
               >
                 {item.label}
               </button>
@@ -429,55 +318,23 @@ function Playground({ flowId, onClose }) {
   }
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      right: 0,
-      width: '400px',
-      height: '100vh',
-      backgroundColor: '#fff',
-      boxShadow: '-4px 0 12px rgba(0,0,0,0.15)',
-      display: 'flex',
-      flexDirection: 'column',
-      zIndex: 1000,
-    }}>
+    <div className="pg-container">
       {/* Header */}
-      <div style={{
-        padding: '1rem',
-        backgroundColor: '#128C7E',
-        color: '#fff',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-      }}>
+      <div className="pg-header">
         <div>
-          <h3 style={{ margin: 0, fontSize: '1rem' }}>🎮 Playground</h3>
-          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', opacity: 0.9 }}>
-            Teste o fluxo em tempo real
-          </p>
+          <h3 className="pg-header-title">Playground</h3>
+          <p className="pg-header-subtitle">Teste o fluxo em tempo real</p>
         </div>
-        <button
-          onClick={onClose}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: '#fff',
-            fontSize: '1.5rem',
-            cursor: 'pointer',
-            padding: '0.25rem',
-          }}
-        >
-          ✕
+        <button onClick={onClose} className="pg-close-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
       </div>
 
       {/* Session Selector */}
-      <div style={{
-        padding: '0.75rem',
-        backgroundColor: '#f5f5f5',
-        borderBottom: '1px solid #ddd',
-      }}>
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+      <div className="pg-session-bar">
+        <div className="pg-session-row">
           <select
             value={selectedSession || ''}
             onChange={(e) => {
@@ -485,14 +342,7 @@ function Playground({ flowId, onClose }) {
               setMessages([])
             }}
             disabled={loadingSessions}
-            style={{
-              flex: 1,
-              padding: '0.5rem',
-              fontSize: '0.85rem',
-              borderRadius: '4px',
-              border: '1px solid #ddd',
-              fontFamily: 'monospace',
-            }}
+            className="pg-select"
           >
             <option value="">Selecione uma sessão...</option>
             {sessions.map((session, idx) => (
@@ -505,104 +355,68 @@ function Playground({ flowId, onClose }) {
             onClick={loadSessions}
             disabled={loadingSessions}
             title="Recarregar sessões"
-            style={{
-              padding: '0.5rem 0.75rem',
-              fontSize: '1rem',
-              backgroundColor: '#fff',
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-              cursor: loadingSessions ? 'not-allowed' : 'pointer',
-            }}
+            className="pg-icon-btn"
           >
-            🔄
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={loadingSessions ? 'pg-spin' : ''}>
+              <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            onClick={createNewSession}
-            style={{
-              flex: 1,
-              padding: '0.5rem',
-              fontSize: '0.85rem',
-              backgroundColor: '#25D366',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: '500',
-            }}
-          >
-            ➕ Nova Sessão
+        <div className="pg-session-row">
+          <button onClick={createNewSession} className="pg-btn pg-btn-new">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Nova Sessão
           </button>
           {selectedSession && (
             <button
               onClick={deleteCurrentSession}
               title="Deletar sessão atual"
-              style={{
-                padding: '0.5rem 0.75rem',
-                fontSize: '1rem',
-                backgroundColor: '#F44336',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
+              className="pg-icon-btn pg-icon-btn-danger"
             >
-              🗑️
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
             </button>
           )}
         </div>
       </div>
 
       {/* Messages Area */}
-      <div style={{
-        flex: 1,
-        padding: '1rem',
-        overflowY: 'auto',
-        backgroundColor: '#ECE5DD',
-        backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'100\' height=\'100\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M0 0h100v100H0z\' fill=\'%23ece5dd\'/%3E%3C/svg%3E")',
-      }}>
+      <div className="pg-messages">
         {messages.length === 0 && !selectedSession && (
-          <div style={{
-            textAlign: 'center',
-            color: '#666',
-            marginTop: '2rem',
-            fontSize: '0.9rem',
-          }}>
-            👆 Selecione ou crie uma sessão para começar
+          <div className="pg-empty-state">
+            <div className="pg-empty-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
+            <p>Selecione ou crie uma sessão para começar</p>
           </div>
         )}
 
         {messages.length === 0 && selectedSession && (
-          <div style={{
-            textAlign: 'center',
-            color: '#666',
-            marginTop: '2rem',
-            fontSize: '0.9rem',
-          }}>
-            Sessão pronta! Digite sua primeira mensagem abaixo para iniciar o fluxo. 💬
+          <div className="pg-empty-state">
+            <div className="pg-empty-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.6 }}>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                <line x1="9" y1="10" x2="15" y2="10" />
+              </svg>
+            </div>
+            <p>Sessão pronta! Digite sua primeira mensagem abaixo.</p>
           </div>
         )}
 
         {messages.map((message, idx) => (
           <div
             key={idx}
-            style={{
-              marginBottom: '0.75rem',
-              display: 'flex',
-              justifyContent: message.type === 'user' ? 'flex-end' : 'flex-start',
-            }}
+            className={`pg-message-row ${message.type === 'user' ? 'pg-message-right' : 'pg-message-left'}`}
           >
             {message.type === 'user' && (
-              <div style={{
-                backgroundColor: '#DCF8C6',
-                padding: '0.75rem',
-                borderRadius: '8px',
-                maxWidth: '80%',
-                fontSize: '0.9rem',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-              }}>
+              <div className="pg-bubble pg-bubble-user">
                 {message.text}
               </div>
             )}
@@ -610,50 +424,26 @@ function Playground({ flowId, onClose }) {
             {message.type === 'bot' && renderBotMessage(message)}
 
             {message.type === 'error' && (
-              <div style={{
-                backgroundColor: '#ffebee',
-                padding: '0.75rem',
-                borderRadius: '8px',
-                maxWidth: '80%',
-                fontSize: '0.85rem',
-                color: '#c62828',
-                border: '1px solid #ef5350',
-              }}>
+              <div className="pg-bubble pg-bubble-error">
                 ⚠️ {message.text}
               </div>
             )}
           </div>
         ))}
 
+        {loading && (
+          <div className="pg-message-row pg-message-left">
+            <div className="pg-bubble pg-bubble-bot pg-typing">
+              <span className="pg-dot" /><span className="pg-dot" /><span className="pg-dot" />
+            </div>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input Area */}
-      <div style={{
-        padding: '0.75rem',
-        backgroundColor: '#f5f5f5',
-        borderTop: '1px solid #ddd',
-      }}>
-        {selectedSession && messages.length === 0 && (
-          <button
-            onClick={() => inputRef.current?.focus()}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              marginBottom: '0.5rem',
-              backgroundColor: '#2196F3',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '0.9rem',
-              fontWeight: '500',
-            }}
-          >
-            💬 Digite sua mensagem abaixo
-          </button>
-        )}
-
+      <div className="pg-input-bar">
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -661,7 +451,7 @@ function Playground({ flowId, onClose }) {
               sendMessage()
             }
           }}
-          style={{ display: 'flex', gap: '0.5rem' }}
+          className="pg-input-form"
         >
           <input
             ref={inputRef}
@@ -670,30 +460,16 @@ function Playground({ flowId, onClose }) {
             onChange={(e) => setInputText(e.target.value)}
             placeholder={selectedSession ? "Digite uma mensagem..." : "Selecione uma sessão primeiro"}
             disabled={!selectedSession || loading}
-            style={{
-              flex: 1,
-              padding: '0.75rem',
-              fontSize: '0.9rem',
-              border: '1px solid #ddd',
-              borderRadius: '20px',
-              outline: 'none',
-            }}
+            className="pg-input"
           />
           <button
             type="submit"
             disabled={!selectedSession || !inputText.trim() || loading}
-            style={{
-              padding: '0.75rem 1.25rem',
-              backgroundColor: '#25D366',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '20px',
-              cursor: (!selectedSession || !inputText.trim() || loading) ? 'not-allowed' : 'pointer',
-              fontSize: '1.2rem',
-              opacity: (!selectedSession || !inputText.trim() || loading) ? 0.5 : 1,
-            }}
+            className="pg-send-btn"
           >
-            {loading ? '⏳' : '📤'}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
           </button>
         </form>
       </div>
