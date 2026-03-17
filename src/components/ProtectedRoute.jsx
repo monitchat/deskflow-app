@@ -23,6 +23,11 @@ function ProtectedRoute({ children }) {
       localStorage.setItem('user_email', userInfo.email || '')
       localStorage.setItem('user_avatar', userInfo.avatar || '')
       localStorage.setItem('user_company_id', userInfo.company_id || '')
+      localStorage.setItem('user_is_master', userInfo.is_master ? 'true' : 'false')
+      localStorage.setItem('user_role', userInfo.role || userInfo.roles?.[0] || 'admin')
+      const isAdmin = !!(userInfo.is_admin || userInfo.is_master || userInfo.role === 'admin' || userInfo.roles?.includes('admin'))
+      localStorage.setItem('user_is_admin', isAdmin ? 'true' : 'false')
+      localStorage.setItem('auth_source', 'monitchat')
     } catch (e) {
       console.error('Error decoding JWT from URL:', e)
     }
