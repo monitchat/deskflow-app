@@ -304,6 +304,18 @@ function ApiKeysPanel({ onClose }) {
                             }}>
                               {k.is_active ? 'Ativa' : 'Revogada'}
                             </span>
+                            {k.is_master && (
+                              <span style={{
+                                padding: '0.1rem 0.4rem',
+                                borderRadius: '10px',
+                                fontSize: '0.65rem',
+                                fontWeight: 600,
+                                backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                                color: '#CA8A04',
+                              }}>
+                                Master
+                              </span>
+                            )}
                           </div>
                           <div style={{
                             fontSize: '0.75rem',
