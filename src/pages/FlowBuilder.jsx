@@ -23,6 +23,7 @@ import Playground from '../components/Playground'
 import Header from '../components/Header'
 import SecretsPanel from '../components/SecretsPanel'
 import AccountsPanel from '../components/AccountsPanel'
+import ApiKeysPanel from '../components/ApiKeysPanel'
 
 const nodeTypes = {
   message: CustomNode,
@@ -66,6 +67,7 @@ function FlowBuilderInner() {
   const [showPlayground, setShowPlayground] = useState(false)
   const [showSecrets, setShowSecrets] = useState(false)
   const [showAccounts, setShowAccounts] = useState(false)
+  const [showApiKeys, setShowApiKeys] = useState(false)
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState(null)
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
@@ -925,6 +927,14 @@ function FlowBuilderInner() {
                   >
                     <span>Contas Permitidas</span>
                   </button>
+                  <button
+                    style={menuItemStyle}
+                    onClick={() => { setShowMenu(false); setShowApiKeys(true) }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <span>API Keys</span>
+                  </button>
                   <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.3rem 0' }} />
                   <button
                     style={menuItemStyle}
@@ -1185,6 +1195,12 @@ function FlowBuilderInner() {
         <AccountsPanel
           flowId={flowId}
           onClose={() => setShowAccounts(false)}
+        />
+      )}
+
+      {showApiKeys && (
+        <ApiKeysPanel
+          onClose={() => setShowApiKeys(false)}
         />
       )}
     </div>
