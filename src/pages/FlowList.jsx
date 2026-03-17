@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../config/axios'
 import Header from '../components/Header'
+import AccountsPanel from '../components/AccountsPanel'
 
 const styles = {
   page: {
@@ -174,6 +175,7 @@ function FlowList() {
   const [flows, setFlows] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedFlowId, setSelectedFlowId] = useState(null)
+  const [accountsFlowId, setAccountsFlowId] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -311,6 +313,20 @@ function FlowList() {
                   {flow.is_active ? 'Desativar' : 'Ativar'}
                 </button>
                 <button
+                  style={styles.btnToggle}
+                  onClick={(e) => { e.stopPropagation(); setAccountsFlowId(flow.id) }}
+                  onMouseEnter={(e) => {
+                    e.target.style.borderColor = '#6366f1'
+                    e.target.style.color = '#6366f1'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.borderColor = 'var(--border)'
+                    e.target.style.color = 'var(--text-muted)'
+                  }}
+                >
+                  Contas
+                </button>
+                <button
                   style={{
                     ...styles.btnDelete,
                     ...(flow.is_active ? { opacity: 0.3, cursor: 'not-allowed' } : {}),
@@ -348,6 +364,13 @@ function FlowList() {
           )}
         </div>
       </div>
+
+      {accountsFlowId && (
+        <AccountsPanel
+          flowId={accountsFlowId}
+          onClose={() => setAccountsFlowId(null)}
+        />
+      )}
     </div>
   )
 }

@@ -22,6 +22,7 @@ import SessionDebugPanel from '../components/SessionDebugPanel'
 import Playground from '../components/Playground'
 import Header from '../components/Header'
 import SecretsPanel from '../components/SecretsPanel'
+import AccountsPanel from '../components/AccountsPanel'
 
 const nodeTypes = {
   message: CustomNode,
@@ -64,6 +65,7 @@ function FlowBuilderInner() {
   const [showDebugPanel, setShowDebugPanel] = useState(false)
   const [showPlayground, setShowPlayground] = useState(false)
   const [showSecrets, setShowSecrets] = useState(false)
+  const [showAccounts, setShowAccounts] = useState(false)
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState(null)
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
@@ -913,7 +915,15 @@ function FlowBuilderInner() {
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   >
-                    <span>Credenciais</span>
+                    <span>Variáveis de Ambiente</span>
+                  </button>
+                  <button
+                    style={menuItemStyle}
+                    onClick={() => { setShowMenu(false); setShowAccounts(true) }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <span>Contas Permitidas</span>
                   </button>
                   <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.3rem 0' }} />
                   <button
@@ -1168,6 +1178,13 @@ function FlowBuilderInner() {
         <SecretsPanel
           flowId={flowId}
           onClose={() => setShowSecrets(false)}
+        />
+      )}
+
+      {showAccounts && flowId && flowId !== 'new' && (
+        <AccountsPanel
+          flowId={flowId}
+          onClose={() => setShowAccounts(false)}
         />
       )}
     </div>
