@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { API_BASE_URL } from '../config/api'
 
 const styles = {
   page: {
@@ -177,15 +178,18 @@ function Login() {
     setLoading(true)
 
     try {
-      const response = await axios.post('https://api-v2.monitchat.com/api/v1/auth/login', {
+      // Endpoint unificado: tenta local primeiro, depois MonitChat
+      const response = await axios.post(`${API_BASE_URL}/api/v1/auth/login`, {
         email,
         password
       })
 
-      const { access_token } = response.data
+      const { access_token, auth_source, user } = response.data.data
 
       if (access_token) {
-        const userInfo = decodeJWT(access_token)
+        const userInfo = auth_source === 'local' && user
+          ? user
+          : decodeJWT(access_token)
 
         if (userInfo) {
           localStorage.setItem('token', access_token)
@@ -193,6 +197,10 @@ function Login() {
           localStorage.setItem('user_email', userInfo.email || '')
           localStorage.setItem('user_avatar', userInfo.avatar || '')
           localStorage.setItem('user_company_id', userInfo.company_id || '')
+          localStorage.setItem('user_is_master', userInfo.is_master ? 'true' : 'false')
+          localStorage.setItem('user_role', userInfo.role || userInfo.roles?.[0] || 'admin')
+          localStorage.setItem('user_is_admin', (userInfo.is_admin || userInfo.is_master || userInfo.role === 'admin' || userInfo.roles?.includes('admin')) ? 'true' : 'false')
+          localStorage.setItem('auth_source', auth_source || '')
           localStorage.setItem('deskflow-embedded', 'false')
         }
 
@@ -202,7 +210,7 @@ function Login() {
       }
     } catch (err) {
       console.error('Login error:', err)
-      setError(err.response?.data?.message || 'Erro ao fazer login. Verifique suas credenciais.')
+      setError(err.response?.data?.error || 'Erro ao fazer login. Verifique suas credenciais.')
     } finally {
       setLoading(false)
     }

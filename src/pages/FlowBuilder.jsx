@@ -24,6 +24,7 @@ import Header from '../components/Header'
 import SecretsPanel from '../components/SecretsPanel'
 import AccountsPanel from '../components/AccountsPanel'
 import ApiKeysPanel from '../components/ApiKeysPanel'
+import UsersPanel from '../components/UsersPanel'
 
 const nodeTypes = {
   message: CustomNode,
@@ -68,6 +69,8 @@ function FlowBuilderInner() {
   const [showSecrets, setShowSecrets] = useState(false)
   const [showAccounts, setShowAccounts] = useState(false)
   const [showApiKeys, setShowApiKeys] = useState(false)
+  const [showUsers, setShowUsers] = useState(false)
+  const isAdmin = localStorage.getItem('user_is_admin') === 'true'
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState(null)
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
@@ -843,9 +846,11 @@ function FlowBuilderInner() {
 
           {/* Direita: botões de ação + menu */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
-            <button className="btn btn-success" onClick={handleSave} style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem' }}>
-              Salvar
-            </button>
+            {isAdmin && (
+              <button className="btn btn-success" onClick={handleSave} style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem' }}>
+                Salvar
+              </button>
+            )}
 
             {/* Menu dropdown */}
             <div ref={menuRef} style={{ position: 'relative' }}>
@@ -911,47 +916,59 @@ function FlowBuilderInner() {
                     <span>Debug</span>
                     {showDebugPanel && <span style={{ color: '#22c55e', fontSize: '0.7rem' }}>(ativo)</span>}
                   </button>
-                  <button
-                    style={menuItemStyle}
-                    onClick={() => { setShowMenu(false); setShowSecrets(true) }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    <span>Variáveis de Ambiente</span>
-                  </button>
-                  <button
-                    style={menuItemStyle}
-                    onClick={() => { setShowMenu(false); setShowAccounts(true) }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    <span>Contas Permitidas</span>
-                  </button>
-                  <button
-                    style={menuItemStyle}
-                    onClick={() => { setShowMenu(false); setShowApiKeys(true) }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    <span>API Keys</span>
-                  </button>
-                  <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.3rem 0' }} />
-                  <button
-                    style={menuItemStyle}
-                    onClick={handleExport}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    <span>Exportar JSON</span>
-                  </button>
-                  <button
-                    style={menuItemStyle}
-                    onClick={handleImport}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    <span>Importar JSON</span>
-                  </button>
+                  {isAdmin && (
+                    <>
+                      <button
+                        style={menuItemStyle}
+                        onClick={() => { setShowMenu(false); setShowSecrets(true) }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <span>Variáveis de Ambiente</span>
+                      </button>
+                      <button
+                        style={menuItemStyle}
+                        onClick={() => { setShowMenu(false); setShowAccounts(true) }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <span>Contas Permitidas</span>
+                      </button>
+                      <button
+                        style={menuItemStyle}
+                        onClick={() => { setShowMenu(false); setShowApiKeys(true) }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <span>API Keys</span>
+                      </button>
+                      <button
+                        style={menuItemStyle}
+                        onClick={() => { setShowMenu(false); setShowUsers(true) }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <span>Usuários</span>
+                      </button>
+                      <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.3rem 0' }} />
+                      <button
+                        style={menuItemStyle}
+                        onClick={handleExport}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <span>Exportar JSON</span>
+                      </button>
+                      <button
+                        style={menuItemStyle}
+                        onClick={handleImport}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <span>Importar JSON</span>
+                      </button>
+                    </>
+                  )}
                   <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.3rem 0' }} />
                   <button
                     style={{ ...menuItemStyle, color: 'var(--text-dim)' }}
@@ -1201,6 +1218,12 @@ function FlowBuilderInner() {
       {showApiKeys && (
         <ApiKeysPanel
           onClose={() => setShowApiKeys(false)}
+        />
+      )}
+
+      {showUsers && (
+        <UsersPanel
+          onClose={() => setShowUsers(false)}
         />
       )}
     </div>

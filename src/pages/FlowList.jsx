@@ -176,15 +176,20 @@ function FlowList() {
   const [loading, setLoading] = useState(true)
   const [selectedFlowId, setSelectedFlowId] = useState(null)
   const [accountsFlowId, setAccountsFlowId] = useState(null)
+  const [filterCompanyId, setFilterCompanyId] = useState('')
+  const isMaster = localStorage.getItem('user_is_master') === 'true'
+  const isAdmin = localStorage.getItem('user_is_admin') === 'true'
   const navigate = useNavigate()
 
   useEffect(() => {
     loadFlows()
-  }, [])
+  }, [filterCompanyId])
 
   const loadFlows = async () => {
     try {
-      const response = await api.get('/api/v1/flows')
+      setLoading(true)
+      const params = isMaster && filterCompanyId ? `?company_id=${filterCompanyId}` : ''
+      const response = await api.get(`/api/v1/flows${params}`)
       setFlows(response.data.data)
       setLoading(false)
     } catch (error) {
@@ -192,6 +197,9 @@ function FlowList() {
       setLoading(false)
     }
   }
+
+  // Extrai company_ids únicos dos flows (para o filtro master)
+  const companyIds = [...new Set(flows.map(f => f.company_id).filter(Boolean))].sort((a, b) => a - b)
 
   const handleDelete = async (id) => {
     if (!confirm('Tem certeza que deseja excluir este fluxo?')) return
@@ -236,20 +244,45 @@ function FlowList() {
             <h1 style={styles.title}>Fluxos de Conversação</h1>
             <p style={styles.subtitle}>{flows.length} fluxo{flows.length !== 1 ? 's' : ''} criado{flows.length !== 1 ? 's' : ''}</p>
           </div>
-          <button
-            style={styles.newButton}
-            onClick={() => navigate('/flow/new')}
-            onMouseEnter={(e) => {
-              e.target.style.transform = 'translateY(-1px)'
-              e.target.style.boxShadow = '0 6px 20px rgba(99, 102, 241, 0.5)'
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = 'translateY(0)'
-              e.target.style.boxShadow = '0 4px 14px rgba(99, 102, 241, 0.35)'
-            }}
-          >
-            + Novo Fluxo
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {isMaster && (
+              <select
+                value={filterCompanyId}
+                onChange={(e) => setFilterCompanyId(e.target.value)}
+
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  backgroundColor: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                }}
+              >
+                <option value="">Todas as empresas</option>
+                {companyIds.map((cid) => (
+                  <option key={cid} value={cid}>Empresa {cid}</option>
+                ))}
+              </select>
+            )}
+            {isAdmin && (
+              <button
+                style={styles.newButton}
+                onClick={() => navigate('/flow/new')}
+                onMouseEnter={(e) => {
+                  e.target.style.transform = 'translateY(-1px)'
+                  e.target.style.boxShadow = '0 6px 20px rgba(99, 102, 241, 0.5)'
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = 'translateY(0)'
+                  e.target.style.boxShadow = '0 4px 14px rgba(99, 102, 241, 0.35)'
+                }}
+              >
+                + Novo Fluxo
+              </button>
+            )}
+          </div>
         </div>
 
         <div style={styles.grid}>
@@ -279,7 +312,23 @@ function FlowList() {
                 }
               }}
             >
-              <h3 style={styles.cardName}>{flow.name}</h3>
+              <h3 style={styles.cardName}>
+                {flow.name}
+                {isMaster && flow.company_id && (
+                  <span style={{
+                    marginLeft: '0.5rem',
+                    fontSize: '0.65rem',
+                    fontWeight: 500,
+                    padding: '0.1rem 0.4rem',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    color: '#6366f1',
+                    verticalAlign: 'middle',
+                  }}>
+                    Empresa {flow.company_id}
+                  </span>
+                )}
+              </h3>
               <p style={styles.cardDesc}>{flow.description || 'Sem descrição'}</p>
 
               <div style={styles.cardMeta}>
@@ -296,56 +345,62 @@ function FlowList() {
                   style={styles.btnEdit}
                   onClick={(e) => { e.stopPropagation(); navigate(`/flow/${flow.id}`) }}
                 >
-                  Editar
+                  {isAdmin ? 'Editar' : 'Visualizar'}
                 </button>
-                <button
-                  style={styles.btnToggle}
-                  onClick={(e) => { e.stopPropagation(); handleToggleActive(flow.id, flow.is_active) }}
-                  onMouseEnter={(e) => {
-                    e.target.style.borderColor = flow.is_active ? '#f59e0b' : '#22c55e'
-                    e.target.style.color = flow.is_active ? '#f59e0b' : '#22c55e'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.borderColor = 'var(--border)'
-                    e.target.style.color = 'var(--text-muted)'
-                  }}
-                >
-                  {flow.is_active ? 'Desativar' : 'Ativar'}
-                </button>
-                <button
-                  style={styles.btnToggle}
-                  onClick={(e) => { e.stopPropagation(); setAccountsFlowId(flow.id) }}
-                  onMouseEnter={(e) => {
-                    e.target.style.borderColor = '#6366f1'
-                    e.target.style.color = '#6366f1'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.borderColor = 'var(--border)'
-                    e.target.style.color = 'var(--text-muted)'
-                  }}
-                >
-                  Contas
-                </button>
-                <button
-                  style={{
-                    ...styles.btnDelete,
-                    ...(flow.is_active ? { opacity: 0.3, cursor: 'not-allowed' } : {}),
-                  }}
-                  onClick={(e) => { e.stopPropagation(); handleDelete(flow.id) }}
-                  disabled={flow.is_active}
-                  onMouseEnter={(e) => {
-                    if (!flow.is_active) {
-                      e.target.style.borderColor = '#dc2626'
-                      e.target.style.color = '#dc2626'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.borderColor = 'var(--border)'
-                    e.target.style.color = 'var(--text-dim)'
-                  }}
-                >
-                  Excluir
-                </button>
+                {isAdmin && (
+                  <>
+                    <button
+                      style={styles.btnToggle}
+                      onClick={(e) => { e.stopPropagation(); handleToggleActive(flow.id, flow.is_active) }}
+                      onMouseEnter={(e) => {
+                        e.target.style.borderColor = flow.is_active ? '#f59e0b' : '#22c55e'
+                        e.target.style.color = flow.is_active ? '#f59e0b' : '#22c55e'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.borderColor = 'var(--border)'
+                        e.target.style.color = 'var(--text-muted)'
+                      }}
+                    >
+                      {flow.is_active ? 'Desativar' : 'Ativar'}
+                    </button>
+                    <button
+                      style={styles.btnToggle}
+                      onClick={(e) => { e.stopPropagation(); setAccountsFlowId(flow.id) }}
+                      onMouseEnter={(e) => {
+                        e.target.style.borderColor = '#6366f1'
+                        e.target.style.color = '#6366f1'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.borderColor = 'var(--border)'
+                        e.target.style.color = 'var(--text-muted)'
+                      }}
+                    >
+                      Contas
+                    </button>
+                  </>
+                )}
+                {isAdmin && (
+                  <button
+                    style={{
+                      ...styles.btnDelete,
+                      ...(flow.is_active ? { opacity: 0.3, cursor: 'not-allowed' } : {}),
+                    }}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(flow.id) }}
+                    disabled={flow.is_active}
+                    onMouseEnter={(e) => {
+                      if (!flow.is_active) {
+                        e.target.style.borderColor = '#dc2626'
+                        e.target.style.color = '#dc2626'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.borderColor = 'var(--border)'
+                      e.target.style.color = 'var(--text-dim)'
+                    }}
+                  >
+                    Excluir
+                  </button>
+                )}
               </div>
             </div>
           ))}
