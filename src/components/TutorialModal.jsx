@@ -379,6 +379,19 @@ const slides = [
               Busca dados do contexto da conversa. A IA pede a chave e recebe o valor. Util para o agente consultar dados ja coletados (CPF, nome, pedidos).
             </p>
           </div>
+
+          <div style={{
+            padding: '0.75rem', borderRadius: '10px',
+            backgroundColor: 'var(--bg-secondary, #F9FAFB)',
+            border: '1px solid var(--border, #E5E7EB)',
+          }}>
+            <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text, #111)', marginBottom: '0.4rem' }}>
+              🔘 Enviar Botoes &nbsp;&nbsp; 📋 Enviar Lista
+            </div>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-dim, #6B7280)', margin: 0, lineHeight: 1.5 }}>
+              A IA decide quando enviar botoes (ate 3 opcoes) ou lista (mais de 3) para simplificar a escolha do usuario. Em vez de digitar, o usuario clica. A IA monta as opcoes automaticamente com base no contexto da conversa.
+            </p>
+          </div>
         </div>
       </>
     ),

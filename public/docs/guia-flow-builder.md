@@ -394,6 +394,8 @@ Tools são funções que o agente pode executar durante a conversa. A IA decide 
 | HTTP Request | 🌐 | Chamar APIs externas |
 | Buscar Contexto | 💾 | Consultar dados já coletados na conversa |
 | Salvar Dados | 💾 | Guardar informações extraídas da conversa |
+| Enviar Botões | 🔘 | Enviar mensagem com botões clicáveis (até 3) |
+| Enviar Lista | 📋 | Enviar lista de opções selecionáveis |
 | Transferir | 👤 | Encaminhar para departamento humano |
 | Finalizar | 🏁 | Encerrar o atendimento |
 | Custom Function | ⚡ | Código Python personalizado |
@@ -452,6 +454,74 @@ Os parâmetros dizem à IA quais dados ela precisa extrair da conversa. Use JSON
 | `${{secret.X}}` | Credencial do fluxo | `${{secret.API_BASE}}/endpoint` |
 
 Parâmetros definidos no Schema que não aparecem na URL vão automaticamente como query string (GET) ou body (POST).
+
+#### 🔘 Tool Enviar Botões
+
+Permite que a IA envie mensagens com botões clicáveis durante a conversa. A IA decide sozinha quando é melhor oferecer botões ao invés de esperar o usuário digitar.
+
+**Quando a IA usa:** Quando há até 3 opções claras e quer simplificar a escolha do usuário.
+
+**O que a IA controla:**
+- Texto da mensagem acima dos botões
+- Textos dos botões (máximo 3 — limitação do WhatsApp)
+
+**Exemplo prático:** O cliente pergunta "Vocês têm sofás disponíveis?". A IA consulta o estoque via tool HTTP e depois envia:
+
+```
+Mensagem: "Encontrei 2 sofás disponíveis para sua região:"
+Botões: ["Sofá Retrátil - R$ 2.500", "Sofá Fixo - R$ 1.800"]
+```
+
+O usuário clica no botão e a IA recebe o texto como resposta, podendo continuar o atendimento.
+
+**Dica no prompt:**
+```
+Quando o usuário precisar escolher entre poucas opções (até 3),
+use botões para facilitar. Não force o usuário a digitar quando
+pode clicar.
+```
+
+#### 📋 Tool Enviar Lista
+
+Permite que a IA envie uma lista expansível com múltiplas opções. Ideal quando há mais de 3 alternativas.
+
+**Quando a IA usa:** Quando há muitas opções e botões não são suficientes.
+
+**O que a IA controla:**
+- Texto da mensagem
+- Texto do botão que abre a lista (ex: "Ver opções")
+- Título da seção
+- Lista de opções com título e descrição
+
+**Exemplo prático:** O cliente quer ver os produtos de uma categoria. A IA consulta o catálogo e envia:
+
+```
+Mensagem: "Encontrei 5 produtos na categoria Sala de Estar:"
+Botão: "Ver produtos"
+Opções:
+  - Sofá Retrátil 3 Lugares | R$ 2.500 - Disponível
+  - Sofá Fixo 2 Lugares | R$ 1.800 - Disponível
+  - Poltrona Decorativa | R$ 890 - Disponível
+  - Mesa de Centro | R$ 450 - Últimas unidades
+  - Rack para TV 55" | R$ 1.200 - Disponível
+```
+
+**Dica no prompt:**
+```
+Quando houver mais de 3 opções para apresentar, use a lista ao
+invés de digitar todas as opções no texto. Inclua preço e
+disponibilidade na descrição de cada item quando possível.
+```
+
+**Combinando botões e lista com outras tools:**
+
+A IA pode encadear tools livremente. Por exemplo:
+1. Chama `consultar_estoque` (HTTP) → recebe lista de produtos
+2. Se 1-3 resultados → chama `enviar_botoes` com as opções
+3. Se 4+ resultados → chama `enviar_lista` com todas as opções
+4. Usuário clica → IA chama `consultar_produto` com o item selecionado
+
+Tudo isso acontece automaticamente baseado no prompt e nas descriptions das tools.
 
 #### 💾 Tool Salvar Dados
 
@@ -720,6 +790,65 @@ result = {
     "parcelas_max": parcelas_max,
     "motivo": "Aprovado" if aprovado else "Score baixo" if score < 300 else "Limite insuficiente"
 }
+```
+
+### Cenário 8: Catálogo Interativo com Botões e Lista
+
+**Situação:** Cliente quer ver produtos disponíveis. A IA consulta o estoque e apresenta de forma interativa.
+
+**Configuração no Agente IA:**
+
+Prompt:
+```
+Você é a assistente virtual da loja Casa Nova Móveis.
+
+Quando o cliente pedir para ver produtos:
+1. Pergunte qual categoria (ou use botões com as categorias mais populares)
+2. Consulte o estoque da categoria
+3. Se houver até 3 produtos, envie como botões
+4. Se houver mais de 3, envie como lista com preço e disponibilidade
+5. Quando o cliente escolher um produto, mostre os detalhes completos
+
+Sempre use botões ou lista quando possível — evite que o usuário precise digitar.
+```
+
+Tools:
+- `consultar_categorias` (HTTP GET) → retorna categorias
+- `consultar_produtos` (HTTP GET) → retorna produtos por categoria
+- `enviar_botoes` (Botões) → para poucas opções
+- `enviar_lista` (Lista) → para muitas opções
+- `salvar_dados` (Salvar) → guarda preferências do cliente
+
+**Conversa exemplo:**
+```
+Cliente: "Quero ver sofás"
+
+IA chama: consultar_produtos(categoria: "sofas")
+   → retorna 5 produtos
+
+IA chama: enviar_lista(
+    message: "Encontrei 5 sofás disponíveis:",
+    button_text: "Ver sofás",
+    options: [
+      {title: "Sofá Retrátil 3L", description: "R$ 2.500 - Disponível"},
+      {title: "Sofá Fixo 2L", description: "R$ 1.800 - Disponível"},
+      {title: "Sofá Canto L", description: "R$ 3.200 - Disponível"},
+      {title: "Sofá-Cama", description: "R$ 1.500 - Últimas unidades"},
+      {title: "Poltrona Reclinável", description: "R$ 890 - Disponível"}
+    ]
+)
+
+Cliente clica: "Sofá Retrátil 3L"
+
+IA chama: consultar_produto(id: "sofa-retratil-3l")
+   → retorna detalhes completos
+
+IA responde: "O Sofá Retrátil 3 Lugares é perfeito para..."
+
+IA chama: enviar_botoes(
+    message: "O que gostaria de fazer?",
+    buttons: ["Comprar agora", "Ver mais opções", "Falar com vendedor"]
+)
 ```
 
 ---

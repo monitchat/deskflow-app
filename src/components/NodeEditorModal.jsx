@@ -2625,128 +2625,67 @@ Regras:
             <hr style={{ margin: '1rem 0', borderColor: '#ddd' }} />
 
             <div className="form-group">
-              <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>🔧 Tools (Ferramentas)</span>
-                <div style={{ display: 'flex', gap: '0.25rem' }}>
+              <label>🔧 Tools (Ferramentas)</label>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '0.35rem',
+                marginBottom: '0.75rem',
+              }}>
+                {[
+                  { icon: '🌐', label: 'HTTP', color: '#6366f1', type: 'http_request', defaults: { name: `tool_${Date.now()}`, type: 'http_request', description: '', method: 'GET', url: '', headers: {}, parameters: { type: 'object', properties: {}, required: [] } } },
+                  { icon: '💾', label: 'Contexto', color: '#F59E0B', type: 'context_lookup', defaults: { name: `context_${Date.now()}`, type: 'context_lookup', description: 'Busca informações do contexto da conversa', parameters: { type: 'object', properties: { key: { type: 'string', description: 'A chave do contexto a buscar' } }, required: ['key'] } } },
+                  { icon: '🔘', label: 'Botões', color: '#2196F3', type: 'send_buttons', defaults: { name: 'enviar_botoes', type: 'send_buttons', description: 'Envia botões clicáveis para simplificar a escolha do usuário. Use quando houver até 3 opções claras.' } },
+                  { icon: '📋', label: 'Lista', color: '#009688', type: 'send_list', defaults: { name: 'enviar_lista', type: 'send_list', description: 'Envia uma lista de opções para o usuário selecionar. Use quando houver mais de 3 opções.' } },
+                  { icon: '👤', label: 'Transferir', color: '#7C3AED', type: 'transfer_department', defaults: { name: 'transferir_departamento', type: 'transfer_department', description: 'Transfere o atendimento para um departamento de atendimento humano.', departments: [] } },
+                  { icon: '💾', label: 'Salvar', color: '#F59E0B', type: 'save_context', defaults: { name: 'salvar_dados', type: 'save_context', description: 'Salva informações do cliente extraídas da conversa (nome, CPF, endereço, preferências).' } },
+                  { icon: '🏁', label: 'Finalizar', color: '#EF4444', type: 'end_chat', defaults: { name: 'finalizar_atendimento', type: 'end_chat', description: 'Finaliza o atendimento e encerra a conversa.' } },
+                  { icon: '⚡', label: 'Custom', color: '#4CAF50', type: 'function', defaults: { name: `custom_${Date.now()}`, type: 'function', description: 'Descreva o que esta função faz.', parameters: { type: 'object', properties: {}, required: [] }, context_key: '', code: '# args = argumentos da IA\n# context = dados da conversa\n# secrets = credenciais\n\nresult = {"status": "ok"}' } },
+                ].map((item) => (
                   <button
+                    key={item.type}
                     type="button"
-                    className="btn btn-sm btn-primary"
                     onClick={() => {
                       const tools = data.tools || []
-                      updateData('tools', [...tools, {
-                        name: `tool_${Date.now()}`,
-                        type: 'http_request',
-                        description: '',
-                        method: 'GET',
-                        url: '',
-                        headers: {},
-                        parameters: { type: 'object', properties: {}, required: [] },
-                      }])
+                      updateData('tools', [...tools, { ...item.defaults }])
                     }}
-                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
-                    title="Adicionar Tool HTTP"
-                  >
-                    🌐 HTTP
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={() => {
-                      const tools = data.tools || []
-                      updateData('tools', [...tools, {
-                        name: `context_${Date.now()}`,
-                        type: 'context_lookup',
-                        description: 'Busca informações do contexto da conversa',
-                        parameters: {
-                          type: 'object',
-                          properties: {
-                            key: { type: 'string', description: 'A chave do contexto a buscar' }
-                          },
-                          required: ['key'],
-                        },
-                      }])
+                    style={{
+                      padding: '0.4rem 0.25rem',
+                      fontSize: '0.72rem',
+                      fontWeight: 500,
+                      backgroundColor: 'transparent',
+                      color: item.color,
+                      border: `1px solid ${item.color}30`,
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '0.15rem',
+                      transition: 'all 0.15s',
                     }}
-                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: '#FF9800', color: '#fff', border: 'none', borderRadius: '4px' }}
-                    title="Adicionar Tool de Contexto"
-                  >
-                    💾 Contexto
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={() => {
-                      const tools = data.tools || []
-                      updateData('tools', [...tools, {
-                        name: 'transferir_departamento',
-                        type: 'transfer_department',
-                        description: 'Transfere o atendimento para um departamento de atendimento humano. Use quando o usuário pedir para falar com um atendente ou quando o assunto requer atendimento humano.',
-                        departments: [],
-                      }])
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = `${item.color}15`
+                      e.currentTarget.style.borderColor = `${item.color}60`
                     }}
-                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: '#7C3AED', color: '#fff', border: 'none', borderRadius: '4px' }}
-                    title="Adicionar Tool de Transferência"
-                  >
-                    👤 Transferir
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={() => {
-                      const tools = data.tools || []
-                      updateData('tools', [...tools, {
-                        name: 'salvar_dados',
-                        type: 'save_context',
-                        description: 'Salva informações do cliente extraídas da conversa (nome, CPF, endereço, preferências). Use sempre que o usuário informar dados pessoais ou relevantes.',
-                      }])
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent'
+                      e.currentTarget.style.borderColor = `${item.color}30`
                     }}
-                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: '#F59E0B', color: '#fff', border: 'none', borderRadius: '4px' }}
-                    title="Adicionar Tool de Salvar Contexto"
+                    title={`Adicionar ${item.label}`}
                   >
-                    💾 Salvar
+                    <span style={{ fontSize: '1rem' }}>{item.icon}</span>
+                    <span>{item.label}</span>
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={() => {
-                      const tools = data.tools || []
-                      updateData('tools', [...tools, {
-                        name: 'finalizar_atendimento',
-                        type: 'end_chat',
-                        description: 'Finaliza o atendimento e encerra a conversa. Use quando o assunto foi completamente resolvido e o usuário não precisa de mais ajuda.',
-                      }])
-                    }}
-                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: '#EF4444', color: '#fff', border: 'none', borderRadius: '4px' }}
-                    title="Adicionar Tool de Finalizar"
-                  >
-                    🏁 Finalizar
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={() => {
-                      const tools = data.tools || []
-                      updateData('tools', [...tools, {
-                        name: `custom_${Date.now()}`,
-                        type: 'function',
-                        description: 'Descreva o que esta função faz para a IA saber quando usá-la.',
-                        parameters: { type: 'object', properties: {}, required: [] },
-                        context_key: '',
-                        code: '# Escreva seu código aqui\n# args = argumentos da IA\n# context = dados da conversa\n# secrets = credenciais do fluxo\n\nresult = {"status": "ok"}',
-                      }])
-                    }}
-                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: '#4CAF50', color: '#fff', border: 'none', borderRadius: '4px' }}
-                    title="Adicionar Tool Customizada com código Python"
-                  >
-                    ⚡ Custom
-                  </button>
-                </div>
-              </label>
+                ))}</div>
 
               {(data.tools || []).map((tool, index) => {
                 const isExpanded = expandedOption === `tool_${index}`
                 const toolTypeLabel = {
                   http_request: '🌐 HTTP Request',
                   context_lookup: '💾 Contexto',
+                  send_buttons: '🔘 Botões',
+                  send_list: '📋 Lista',
                   transfer_department: '👤 Transferir',
                   save_context: '💾 Salvar Dados',
                   end_chat: '🏁 Finalizar',
@@ -3042,7 +2981,7 @@ Regras:
                           </>
                         )}
 
-                        {!['transfer_department', 'save_context', 'end_chat'].includes(tool.type) && (
+                        {!['transfer_department', 'save_context', 'end_chat', 'send_buttons', 'send_list'].includes(tool.type) && (
                         <div style={{ marginBottom: '0.5rem' }}>
                           <label style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>
                             Parâmetros (JSON Schema)
@@ -3168,6 +3107,8 @@ Regras:
                 <option value="http_request">🌐 HTTP Request</option>
                 <option value="context_lookup">💾 Buscar Contexto</option>
                 <option value="save_context">💾 Salvar Dados na Conversa</option>
+                <option value="send_buttons">🔘 Enviar Botões</option>
+                <option value="send_list">📋 Enviar Lista</option>
                 <option value="transfer_department">👤 Transferir Departamento</option>
                 <option value="end_chat">🏁 Finalizar Atendimento</option>
                 <option value="function">⚡ Custom Function</option>
@@ -3342,7 +3283,7 @@ Regras:
               </>
             )}
 
-            {!['transfer_department', 'save_context', 'end_chat'].includes(data.tool_type) && (
+            {!['transfer_department', 'save_context', 'end_chat', 'send_buttons', 'send_list'].includes(data.tool_type) && (
             <div className="form-group">
               <label>Parâmetros (JSON Schema)</label>
               <textarea
