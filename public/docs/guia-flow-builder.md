@@ -917,8 +917,160 @@ Você pode ter vários fluxos ativos simultaneamente. Cada fluxo responde nas co
 - Código Python de Custom Functions roda em ambiente restrito
 - Exporte o fluxo regularmente como backup (menu → Exportar JSON)
 
+### API Keys com variáveis
+
+Todos os campos de API key aceitam variáveis. Ao invés de colar a key direto, use:
+
+| Sintaxe | Fonte | Exemplo |
+|---|---|---|
+| `${{secret.OPENAI_KEY}}` | Secrets do fluxo | Configurado em menu → Variáveis de Ambiente |
+| `${{env.OPENAI_API_KEY}}` | Variável de ambiente do servidor | Definida no .env ou docker-compose |
+| `sk-proj-abc123...` | String direta | Funciona, mas não recomendado |
+
+**Recomendação:** Cadastre a key uma vez nos Secrets do fluxo e use `${{secret.OPENAI_KEY}}` em todos os nós (AI Router, Agente IA, RAG). Assim, se precisar trocar a key, muda em um lugar só.
+
 ### Performance
 - Use Delay com moderação (máximo 3-5 segundos)
 - Limite o `max_iterations` do agente (10 é suficiente)
 - Use `max_tokens` adequado (500-1000 para a maioria dos casos)
 - Prefira `gpt-4o-mini` ao invés de `gpt-4o` — é mais rápido e mais barato
+
+---
+
+## Base de Conhecimento (RAG)
+
+O RAG (Retrieval Augmented Generation) permite que o agente de IA busque informações em documentos antes de responder. Ideal para FAQs, manuais, catálogos, políticas e qualquer conteúdo que o agente precisa consultar.
+
+### Como funciona
+
+1. Você faz upload de documentos (PDF, TXT, CSV, Markdown) ou adiciona textos manualmente
+2. O sistema divide o texto em pedaços (chunks) e gera representações vetoriais (embeddings)
+3. Quando o usuário faz uma pergunta, o sistema busca os trechos mais relevantes
+4. A IA recebe esses trechos como contexto e formula a resposta
+
+### Configuração passo a passo
+
+1. No editor do fluxo, adicione um **Agente IA**
+2. Na configuração do agente, adicione a tool **🧠 RAG**
+3. Clique em **"+ Nova"** para criar uma base de conhecimento
+4. Configure:
+   - **Provedor de Embeddings:** OpenAI (recomendado) ou Gemini
+   - **Modelo:** text-embedding-3-small (melhor custo-benefício)
+   - **Estratégia de Chunking:** Por tamanho, separador ou parágrafo
+   - **Tamanho do Chunk:** 256-512 para precisão, 1000-2000 para mais contexto
+   - **Overlap:** 50-100 caracteres (evita cortar informações entre chunks)
+   - **Janela de Contexto:** 1-2 (inclui chunks vizinhos para mais contexto)
+5. Faça upload dos documentos ou adicione textos
+6. Configure o **Top K** (quantos trechos retornar) e **Score Mínimo** (relevância mínima)
+
+### Estratégias de Chunking
+
+| Estratégia | Como funciona | Quando usar |
+|---|---|---|
+| **Por tamanho** | Divide por N caracteres, quebrando em limites naturais | Textos corridos (manuais, artigos) |
+| **Por separador** | Divide pelo texto separador (---, ===, ###) | Documentos estruturados (FAQ com seções) |
+| **Por parágrafo** | Divide por linhas em branco, agrupa parágrafos pequenos | Textos bem organizados em parágrafos |
+
+### Janela de Contexto
+
+Ao encontrar um trecho relevante, a janela expande para incluir chunks vizinhos:
+
+| Valor | O que retorna |
+|---|---|
+| 0 | Só o chunk encontrado |
+| 1 | 1 antes + chunk + 1 depois |
+| 2 | 2 antes + chunk + 2 depois |
+
+**Dica:** Chunks menores (256-512) + janela de contexto 1-2 é o melhor equilíbrio entre precisão na busca e contexto na resposta.
+
+### Top K e Score Mínimo
+
+| Parâmetro | O que faz | Padrão |
+|---|---|---|
+| **Top K** | Quantos trechos mais relevantes retornar | 5 |
+| **Score Mínimo** | Descarta trechos com relevância abaixo desse valor (0 a 1) | 0.3 (30%) |
+
+Exemplos:
+- `top_k=5, min_score=0.3` — Até 5 trechos com pelo menos 30% de relevância
+- `top_k=3, min_score=0.5` — Até 3 trechos bem relevantes (pode não encontrar nada)
+- `top_k=10, min_score=0` — 10 trechos sem filtro (mais contexto, mais ruído)
+
+### Exemplo: FAQ da loja
+
+**Prompt do agente:**
+```
+Você é a assistente virtual da Casa Nova Móveis.
+SEMPRE use a tool de busca para responder perguntas.
+Responda APENAS com informações encontradas nos documentos.
+Se não encontrar, diga que vai verificar com a equipe.
+```
+
+**Tool RAG:**
+- Nome: `buscar_informacoes`
+- Descrição: `Busca informações nos documentos da loja. Use SEMPRE que o cliente perguntar algo.`
+- Top K: 5
+- Score Mínimo: 0.3
+
+**Documento enviado (FAQ.txt):**
+```
+Qual o prazo de entrega?
+O prazo de entrega varia de 3 a 15 dias úteis, dependendo da região.
+---
+Qual a política de troca?
+Aceitamos trocas em até 7 dias após o recebimento, desde que o produto
+esteja em perfeito estado e na embalagem original.
+---
+Vocês fazem entrega no interior?
+Sim, fazemos entregas em todo o estado. Para cidades do interior,
+o prazo pode ser de até 20 dias úteis.
+```
+
+**Conversa:**
+```
+Cliente: "Qual o prazo de entrega?"
+IA busca: "prazo de entrega" → encontra trecho relevante (score 0.92)
+IA responde: "O prazo de entrega varia de 3 a 15 dias úteis,
+dependendo da região. Para cidades do interior, pode ser de até
+20 dias úteis. 😊"
+```
+
+---
+
+## Administração do Banco de Dados
+
+### Backup e Restore
+
+O script `scripts/db_backup_restore.py` gerencia backups do banco de dados:
+
+```bash
+# Backup completo (schema + dados)
+python scripts/db_backup_restore.py backup
+
+# Restaurar último backup
+python scripts/db_backup_restore.py restore
+
+# Restaurar backup específico
+python scripts/db_backup_restore.py restore --file deskflow_backup_20260318_160000.sql
+
+# Recriar banco do zero (PERDE DADOS)
+python scripts/db_backup_restore.py rebuild
+
+# Backup + recria estrutura + restaura dados (migração segura)
+python scripts/db_backup_restore.py migrate
+```
+
+| Comando | O que faz | Perde dados? |
+|---|---|---|
+| `backup` | Salva tudo em `backups/deskflow_backup_TIMESTAMP.sql` | Não |
+| `restore` | Restaura o último backup (ou `--file` específico) | Sobrescreve |
+| `rebuild` | Drop banco + roda migrations + seed | Sim |
+| `migrate` | Backup → rebuild → restore (melhor dos dois mundos) | Não |
+
+**Quando usar:**
+
+| Situação | Comando |
+|---|---|
+| Salvar estado atual antes de mexer | `backup` |
+| Algo deu errado, quero voltar | `restore` |
+| Quero banco limpo pra desenvolvimento | `rebuild` |
+| Adicionei tabelas novas (ex: pgvector) | `migrate` |

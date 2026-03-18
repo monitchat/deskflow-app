@@ -26,6 +26,8 @@ import AccountsPanel from '../components/AccountsPanel'
 import ApiKeysPanel from '../components/ApiKeysPanel'
 import UsersPanel from '../components/UsersPanel'
 import ConfirmModal from '../components/ConfirmModal'
+import KnowledgeBasePanel from '../components/KnowledgeBasePanel'
+import ExecutionLogsPanel from '../components/ExecutionLogsPanel'
 import TutorialModal from '../components/TutorialModal'
 
 const nodeTypes = {
@@ -73,6 +75,8 @@ function FlowBuilderInner() {
   const [showAccounts, setShowAccounts] = useState(false)
   const [showApiKeys, setShowApiKeys] = useState(false)
   const [showUsers, setShowUsers] = useState(false)
+  const [showKnowledge, setShowKnowledge] = useState(false)
+  const [showLogs, setShowLogs] = useState(false)
   const isAdmin = localStorage.getItem('user_is_admin') === 'true'
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState(null)
@@ -312,6 +316,11 @@ function FlowBuilderInner() {
       if (sourceNode?.type === 'ai_tool') {
         return connection.targetHandle === 'tools'
       }
+      // Handle "subagents" só aceita conexão com ai_agent
+      if (connection.sourceHandle === 'subagents') {
+        const targetNode = nodes.find((n) => n.id === connection.target)
+        return targetNode?.type === 'ai_agent'
+      }
       return true
     },
     [nodes]
@@ -365,14 +374,18 @@ function FlowBuilderInner() {
       setNodes((nds) => nds.concat(newNode))
 
       // Cria a conexão
+      // Para handle "tools", a direção é invertida:
+      // ai_tool (novo) → ai_agent (existente, handle tools)
+      const isToolsHandle = connectionMenu.sourceHandle === 'tools'
       const newEdge = {
         id: `${connectionMenu.sourceNodeId}-${newNodeId}`,
-        source: connectionMenu.sourceNodeId,
-        sourceHandle: connectionMenu.sourceHandle,
-        target: newNodeId,
+        source: isToolsHandle ? newNodeId : connectionMenu.sourceNodeId,
+        sourceHandle: isToolsHandle ? null : connectionMenu.sourceHandle,
+        target: isToolsHandle ? connectionMenu.sourceNodeId : newNodeId,
+        targetHandle: isToolsHandle ? 'tools' : null,
         markerEnd: { type: MarkerType.ArrowClosed },
         data: {},
-        style: { stroke: '#b1b1b7' },
+        style: { stroke: isToolsHandle ? '#FF9800' : '#b1b1b7' },
       }
       setEdges((eds) => [...eds, newEdge])
 
@@ -1007,6 +1020,22 @@ function FlowBuilderInner() {
                       </button>
                       <button
                         style={menuItemStyle}
+                        onClick={() => { setShowMenu(false); setShowLogs(true) }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <span>📊 Execution Logs</span>
+                      </button>
+                      <button
+                        style={menuItemStyle}
+                        onClick={() => { setShowMenu(false); setShowKnowledge(true) }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <span>🧠 Base de Conhecimento</span>
+                      </button>
+                      <button
+                        style={menuItemStyle}
                         onClick={() => { setShowMenu(false); setShowUsers(true) }}
                         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -1167,40 +1196,65 @@ function FlowBuilderInner() {
                   position: 'fixed',
                   left: connectionMenu.x,
                   top: connectionMenu.y,
-                  backgroundColor: 'white',
+                  backgroundColor: 'var(--bg-surface, #1e293b)',
                   borderRadius: '8px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
                   padding: '0.5rem',
                   zIndex: 1000,
                   minWidth: '200px',
+                  border: '1px solid var(--border, #334155)',
                 }}
               >
                 <div style={{
                   fontSize: '0.75rem',
                   fontWeight: 'bold',
-                  color: '#666',
+                  color: 'var(--text-dim, #94a3b8)',
                   padding: '0.5rem 0.5rem 0.25rem',
-                  borderBottom: '1px solid #eee',
+                  borderBottom: '1px solid var(--border, #334155)',
                   marginBottom: '0.25rem'
                 }}>
-                  ➕ Adicionar Nó
+                  {connectionMenu.sourceHandle === 'subagents' ? '🧠 Adicionar Sub Agente'
+                    : connectionMenu.sourceHandle === 'tools' ? '🔧 Adicionar Tool'
+                    : nodes.find(n => n.id === connectionMenu.sourceNodeId)?.type === 'ai_tool' ? '🧠 Conectar ao Agente'
+                    : '➕ Adicionar Nó'}
                 </div>
-                {[
-                  { type: 'message', icon: '💬', label: 'Mensagem' },
-                  { type: 'button', icon: '🔘', label: 'Botões' },
-                  { type: 'list', icon: '📋', label: 'Lista' },
-                  { type: 'input', icon: '⌨️', label: 'Input' },
-                  { type: 'condition', icon: '🔀', label: 'Condição' },
-                  { type: 'router', icon: '🎯', label: 'Router' },
-                  { type: 'ai_router', icon: '🤖', label: 'AI Router' },
-                  { type: 'api_call', icon: '🔌', label: 'API' },
-                  { type: 'api_request', icon: '🌐', label: 'HTTP Request' },
-                  { type: 'set_context', icon: '💾', label: 'Salvar Contexto' },
-                  { type: 'transfer', icon: '👤', label: 'Transferir' },
-                  { type: 'media', icon: '📎', label: 'Mídia' },
-                  { type: 'jump_to', icon: '↗️', label: 'Pular para' },
-                  { type: 'end', icon: '🏁', label: 'Fim' },
-                ].map((item) => (
+                {(() => {
+                  const handle = connectionMenu.sourceHandle
+                  const sourceNode = nodes.find(n => n.id === connectionMenu.sourceNodeId)
+                  const sourceType = sourceNode?.type
+
+                  // Handle de subagentes → só ai_agent
+                  if (handle === 'subagents') {
+                    return [{ type: 'ai_agent', icon: '🧠', label: 'Sub Agente' }]
+                  }
+
+                  // ai_tool → só pode conectar em ai_agent (handle tools)
+                  if (sourceType === 'ai_tool') {
+                    return [{ type: 'ai_agent', icon: '🧠', label: 'Agente IA' }]
+                  }
+
+                  // Handle de tools (do ai_agent) → só ai_tool
+                  if (handle === 'tools') {
+                    return [{ type: 'ai_tool', icon: '🔧', label: 'Tool (Agente)' }]
+                  }
+
+                  return [
+                    { type: 'message', icon: '💬', label: 'Mensagem' },
+                    { type: 'button', icon: '🔘', label: 'Botões' },
+                    { type: 'list', icon: '📋', label: 'Lista' },
+                    { type: 'input', icon: '⌨️', label: 'Input' },
+                    { type: 'router', icon: '🎯', label: 'Router' },
+                    { type: 'ai_router', icon: '🤖', label: 'AI Router' },
+                    { type: 'ai_agent', icon: '🧠', label: 'Agente IA' },
+                    { type: 'api_request', icon: '🌐', label: 'HTTP Request' },
+                    { type: 'set_context', icon: '💾', label: 'Salvar Contexto' },
+                    { type: 'delay', icon: '⏱️', label: 'Delay' },
+                    { type: 'transfer', icon: '👤', label: 'Transferir' },
+                    { type: 'media', icon: '📎', label: 'Mídia' },
+                    { type: 'jump_to', icon: '↗️', label: 'Pular para' },
+                    { type: 'end', icon: '🏁', label: 'Fim' },
+                  ]
+                })().map((item) => (
                   <button
                     key={item.type}
                     onClick={() => handleAddNodeFromConnection(item.type)}
@@ -1212,16 +1266,17 @@ function FlowBuilderInner() {
                       padding: '0.5rem',
                       border: 'none',
                       backgroundColor: 'transparent',
+                      color: '#e2e8f0',
                       cursor: 'pointer',
                       fontSize: '0.85rem',
                       borderRadius: '4px',
                       transition: 'background-color 0.15s',
                     }}
                     onMouseEnter={(e) => {
-                      e.target.style.backgroundColor = '#f5f5f5'
+                      e.currentTarget.style.backgroundColor = '#334155'
                     }}
                     onMouseLeave={(e) => {
-                      e.target.style.backgroundColor = 'transparent'
+                      e.currentTarget.style.backgroundColor = 'transparent'
                     }}
                   >
                     <span style={{ fontSize: '1.2rem' }}>{item.icon}</span>
@@ -1239,6 +1294,7 @@ function FlowBuilderInner() {
           node={selectedNode}
           nodes={nodes}
           edges={edges}
+          flowId={flowId}
           onSave={(newData) => onNodeUpdate(selectedNode.id, newData)}
           onDelete={() => onDeleteNode(selectedNode.id)}
           onClose={() => {
@@ -1295,6 +1351,20 @@ function FlowBuilderInner() {
       {showUsers && (
         <UsersPanel
           onClose={() => setShowUsers(false)}
+        />
+      )}
+
+      {showLogs && (
+        <ExecutionLogsPanel
+          flowId={flowId}
+          onClose={() => setShowLogs(false)}
+        />
+      )}
+
+      {showKnowledge && (
+        <KnowledgeBasePanel
+          flowId={flowId}
+          onClose={() => setShowKnowledge(false)}
         />
       )}
 

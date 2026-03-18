@@ -3,8 +3,10 @@ import api from '../config/axios'
 import ContextFieldsModal from './ContextFieldsModal'
 import AutocompleteTextarea from './AutocompleteTextarea'
 import FieldHelper from './FieldHelper'
+import ApiKeyField from './ApiKeyField'
+import KnowledgeBasePanel from './KnowledgeBasePanel'
 
-function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClose }) {
+function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClose, flowId }) {
   const [data, setData] = useState(node.data)
   const [showFieldsModal, setShowFieldsModal] = useState(false)
   const [expandedOption, setExpandedOption] = useState(null)
@@ -40,6 +42,12 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
   const [aiModels, setAiModels] = useState([])
   const [loadingAiModels, setLoadingAiModels] = useState(false)
   const [aiModelsError, setAiModelsError] = useState(null)
+
+  // Estados para bases de conhecimento (RAG)
+  const [knowledgeBases, setKnowledgeBases] = useState([])
+  const [loadingKnowledgeBases, setLoadingKnowledgeBases] = useState(false)
+  const [showKBPanel, setShowKBPanel] = useState(false) // abre o painel completo
+  const [kbPanelCallback, setKbPanelCallback] = useState(null) // callback ao fechar
 
   // Estados para colapsar seções do API Request
   const [queryParamsExpanded, setQueryParamsExpanded] = useState(false)
@@ -132,6 +140,31 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
   }
 
   // Busca status de tickets da API do MonitChat
+  const fetchKnowledgeBases = async () => {
+    if (!flowId) return
+    try {
+      setLoadingKnowledgeBases(true)
+      const res = await api.get(`/api/v1/knowledge/bases/${flowId}`)
+      if (res.data.success) {
+        setKnowledgeBases(res.data.data || [])
+      }
+    } catch (err) {
+      console.error('Error loading knowledge bases:', err)
+    } finally {
+      setLoadingKnowledgeBases(false)
+    }
+  }
+
+  const openKBPanel = (callback) => {
+    setKbPanelCallback(() => callback)
+    setShowKBPanel(true)
+  }
+
+  const closeKBPanel = () => {
+    setShowKBPanel(false)
+    fetchKnowledgeBases() // recarrega lista ao fechar
+  }
+
   const fetchTicketStatuses = async () => {
     setLoadingTicketStatuses(true)
     setTicketStatusesError(null)
@@ -198,8 +231,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
     } catch (error) {
       console.error('Error fetching OpenAI models:', error)
       setAiModelsError(error.message || 'Erro ao buscar modelos da OpenAI')
-      // Define modelos padrão em caso de erro
-      setAiModels(['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'])
+      setAiModels([])
     } finally {
       setLoadingAiModels(false)
     }
@@ -237,8 +269,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
     } catch (error) {
       console.error('Error fetching Gemini models:', error)
       setAiModelsError(error.message || 'Erro ao buscar modelos do Gemini')
-      // Define modelos padrão em caso de erro
-      setAiModels(['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'])
+      setAiModels([])
     } finally {
       setLoadingAiModels(false)
     }
@@ -283,9 +314,14 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
       fetchSessions()
     }
 
-    // Carrega departamentos se for transfer
-    if (node.type === 'transfer') {
+    // Carrega departamentos se for transfer ou ai_agent
+    if (node.type === 'transfer' || node.type === 'ai_agent') {
       fetchDepartments()
+    }
+
+    // Carrega bases de conhecimento se for ai_agent ou ai_tool
+    if ((node.type === 'ai_agent' || node.type === 'ai_tool') && flowId) {
+      fetchKnowledgeBases()
     }
 
     // Carrega status de tickets se for set_ticket_status
@@ -301,23 +337,51 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
     const apiKey = data.api_key
     const provider = data.ai_provider || 'openai'
 
-    // Só busca se houver API key configurada
     if (!apiKey || apiKey.trim().length < 10) {
       setAiModels([])
       return
     }
 
-    // Debounce de 500ms para evitar múltiplas chamadas durante digitação
-    const timer = setTimeout(() => {
+    // env — não resolve no frontend
+    if (apiKey.includes('${{env.')) {
+      setAiModels([])
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      let resolvedKey = apiKey
+
+      // Se for variável de secret, resolve o valor real
+      if (apiKey.includes('${{secret.')) {
+        const match = apiKey.match(/\$\{\{secret\.(.+?)\}\}/)
+        if (match && flowId) {
+          try {
+            const res = await api.get(`/api/v1/flows/${flowId}/secrets/resolve/${match[1]}`)
+            if (res.data.success && res.data.data) {
+              resolvedKey = res.data.data
+            } else {
+              setAiModels([])
+              return
+            }
+          } catch {
+            setAiModels([])
+            return
+          }
+        } else {
+          setAiModels([])
+          return
+        }
+      }
+
       if (provider === 'openai') {
-        fetchOpenAIModels(apiKey)
+        fetchOpenAIModels(resolvedKey)
       } else if (provider === 'gemini') {
-        fetchGeminiModels(apiKey)
+        fetchGeminiModels(resolvedKey)
       }
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [node.type, data.api_key, data.ai_provider])
+  }, [node.type, data.api_key, data.ai_provider, flowId])
 
   // Listener para fechar modal com ESC
   useEffect(() => {
@@ -2068,18 +2132,12 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
 
             <div className="form-group">
               <label>API Key</label>
-              <input
-                type="password"
+              <ApiKeyField
                 value={data.api_key || ''}
-                onChange={(e) => updateData('api_key', e.target.value)}
-                placeholder={data.ai_provider === 'gemini' ? 'AIza...' : 'sk-...'}
+                onChange={(v) => updateData('api_key', v)}
+                flowId={flowId}
+                provider={data.ai_provider}
               />
-              <small style={{ color: '#666' }}>
-                {data.ai_provider === 'openai'
-                  ? 'Obtenha em: https://platform.openai.com/api-keys'
-                  : 'Obtenha em: https://aistudio.google.com/apikey'
-                }
-              </small>
             </div>
 
             <div className="form-group">
@@ -2444,21 +2502,12 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
 
             <div className="form-group">
               <label>API Key</label>
-              <input
-                type="password"
+              <ApiKeyField
                 value={data.api_key || ''}
-                onChange={(e) => updateData('api_key', e.target.value)}
-                placeholder={
-                  data.ai_provider === 'gemini' ? 'AIza...' :
-                  data.ai_provider === 'azure' ? 'Azure API Key' :
-                  'sk-...'
-                }
+                onChange={(v) => updateData('api_key', v)}
+                flowId={flowId}
+                provider={data.ai_provider}
               />
-              <small style={{ color: '#666' }}>
-                {data.ai_provider === 'openai' && 'Obtenha em: https://platform.openai.com/api-keys'}
-                {data.ai_provider === 'gemini' && 'Obtenha em: https://aistudio.google.com/apikey'}
-                {data.ai_provider === 'azure' && 'Obtenha no Azure Portal'}
-              </small>
             </div>
 
             {data.ai_provider === 'azure' && (
@@ -2613,6 +2662,21 @@ Regras:
             </div>
 
             <div className="form-group">
+              <label>Mensagem de Transição (opcional)</label>
+              <textarea
+                value={data.transition_message || ''}
+                onChange={(e) => updateData('transition_message', e.target.value)}
+                placeholder="Ex: Vou transferir você para nosso especialista..."
+                rows={2}
+              />
+              <FieldHelper
+                description="Enviada quando este agente transfere a conversa para outro agente ou nó usando a tool 'Ir para'. Se vazio, transfere silenciosamente. Aceita variáveis do contexto."
+                example="Um momento, vou transferir você para nosso especialista em ${{assunto}}. 😊"
+                onUseExample={(ex) => updateData('transition_message', ex)}
+              />
+            </div>
+
+            <div className="form-group">
               <label>Salvar resposta em (opcional)</label>
               <input
                 type="text"
@@ -2637,6 +2701,7 @@ Regras:
                   { icon: '💾', label: 'Contexto', color: '#F59E0B', type: 'context_lookup', defaults: { name: `context_${Date.now()}`, type: 'context_lookup', description: 'Busca informações do contexto da conversa', parameters: { type: 'object', properties: { key: { type: 'string', description: 'A chave do contexto a buscar' } }, required: ['key'] } } },
                   { icon: '🔘', label: 'Botões', color: '#2196F3', type: 'send_buttons', defaults: { name: 'enviar_botoes', type: 'send_buttons', description: 'Envia botões clicáveis para simplificar a escolha do usuário. Use quando houver até 3 opções claras.' } },
                   { icon: '📋', label: 'Lista', color: '#009688', type: 'send_list', defaults: { name: 'enviar_lista', type: 'send_list', description: 'Envia uma lista de opções para o usuário selecionar. Use quando houver mais de 3 opções.' } },
+                  { icon: '🧠', label: 'RAG', color: '#8B5CF6', type: 'knowledge_search', defaults: { name: 'buscar_conhecimento', type: 'knowledge_search', description: 'Busca informações na base de conhecimento. Use para responder perguntas sobre produtos, políticas, procedimentos e qualquer informação documentada.', knowledge_base_id: null, top_k: 5, min_score: 0.3 } },
                   { icon: '👤', label: 'Transferir', color: '#7C3AED', type: 'transfer_department', defaults: { name: 'transferir_departamento', type: 'transfer_department', description: 'Transfere o atendimento para um departamento de atendimento humano.', departments: [] } },
                   { icon: '💾', label: 'Salvar', color: '#F59E0B', type: 'save_context', defaults: { name: 'salvar_dados', type: 'save_context', description: 'Salva informações do cliente extraídas da conversa (nome, CPF, endereço, preferências).' } },
                   { icon: '🏁', label: 'Finalizar', color: '#EF4444', type: 'end_chat', defaults: { name: 'finalizar_atendimento', type: 'end_chat', description: 'Finaliza o atendimento e encerra a conversa.' } },
@@ -2686,6 +2751,8 @@ Regras:
                   context_lookup: '💾 Contexto',
                   send_buttons: '🔘 Botões',
                   send_list: '📋 Lista',
+                  knowledge_search: '🧠 RAG',
+                  transfer_to_node: '🔀 Ir para',
                   transfer_department: '👤 Transferir',
                   save_context: '💾 Salvar Dados',
                   end_chat: '🏁 Finalizar',
@@ -2931,6 +2998,80 @@ Regras:
                           </div>
                         )}
 
+                        {tool.type === 'transfer_to_node' && (
+                          <div style={{ marginBottom: '0.5rem' }}>
+                            <FieldHelper
+                              title="Como funciona"
+                              description="Conecte os nós de destino na saída do agente. A IA vai detectar automaticamente quais nós estão conectados e transferir quando o prompt indicar. Exemplo: conecte um 'Agente Futebol' na saída e instrua no prompt 'se o assunto for futebol, transfira para o especialista'."
+                            />
+                          </div>
+                        )}
+
+                        {tool.type === 'knowledge_search' && (
+                          <div style={{ marginBottom: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div>
+                              <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Base de Conhecimento</label>
+                              {loadingKnowledgeBases ? (
+                                <div style={{ padding: '0.4rem', fontSize: '0.8rem', color: '#888' }}>Carregando...</div>
+                              ) : (
+                                <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.2rem' }}>
+                                  <select
+                                    value={tool.knowledge_base_id || ''}
+                                    onChange={(e) => {
+                                      const tools = [...(data.tools || [])]
+                                      tools[index] = { ...tool, knowledge_base_id: e.target.value ? parseInt(e.target.value) : null }
+                                      updateData('tools', tools)
+                                    }}
+                                    style={{ fontSize: '0.85rem', flex: 1, padding: '0.4rem' }}
+                                  >
+                                    <option value="">Selecione uma base...</option>
+                                    {knowledgeBases.map((kb) => (
+                                      <option key={kb.id} value={kb.id}>{kb.name} ({kb.chunk_count} chunks)</option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    onClick={() => openKBPanel((newKbId) => {
+                                      if (newKbId) {
+                                        const tools = [...(data.tools || [])]
+                                        tools[index] = { ...tool, knowledge_base_id: newKbId }
+                                        updateData('tools', tools)
+                                      }
+                                    })}
+                                    style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', backgroundColor: '#8B5CF6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                  >+ Nova</button>
+                                </div>
+                              )}
+                              {tool.knowledge_base_id && (
+                                <button
+                                  type="button"
+                                  onClick={() => openKBPanel()}
+                                  style={{ marginTop: '0.35rem', padding: '0.35rem 0.6rem', fontSize: '0.75rem', backgroundColor: 'transparent', color: '#8B5CF6', border: '1px solid #8B5CF640', borderRadius: '6px', cursor: 'pointer', width: '100%' }}
+                                >
+                                  🧠 Gerenciar base (upload, textos, configurações)
+                                </button>
+                              )}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                              <div>
+                                <label style={{ fontSize: '0.78rem', fontWeight: 'normal', display: 'block', marginBottom: '0.2rem' }}>Top K</label>
+                                <input type="number" value={tool.top_k || 5} onChange={(e) => { const t = [...(data.tools || [])]; t[index] = { ...tool, top_k: parseInt(e.target.value) || 5 }; updateData('tools', t) }} min={1} max={20} style={{ fontSize: '0.85rem', width: '70px', padding: '0.3rem' }} />
+                                <small style={{ color: '#666', fontSize: '0.68rem', display: 'block' }}>Máx. trechos</small>
+                              </div>
+                              <div>
+                                <label style={{ fontSize: '0.78rem', fontWeight: 'normal', display: 'block', marginBottom: '0.2rem' }}>Score Mín.</label>
+                                <input type="number" value={tool.min_score ?? 0.3} onChange={(e) => { const t = [...(data.tools || [])]; t[index] = { ...tool, min_score: parseFloat(e.target.value) || 0 }; updateData('tools', t) }} min={0} max={1} step={0.05} style={{ fontSize: '0.85rem', width: '70px', padding: '0.3rem' }} />
+                                <small style={{ color: '#666', fontSize: '0.68rem', display: 'block' }}>0-1 (0.3=30%)</small>
+                              </div>
+                            </div>
+                            <FieldHelper
+                              title="Como funciona o RAG"
+                              description="A IA busca na base de conhecimento os trechos mais relevantes para a pergunta do usuário. Top K = quantos trechos retornar. Score Mínimo = relevância mínima (0.3 = 30%)."
+                            />
+                          </div>
+                        )}
+
                         {tool.type === 'function' && (
                           <>
                           <div style={{ marginBottom: '0.5rem' }}>
@@ -2981,7 +3122,7 @@ Regras:
                           </>
                         )}
 
-                        {!['transfer_department', 'save_context', 'end_chat', 'send_buttons', 'send_list'].includes(tool.type) && (
+                        {!['transfer_department', 'save_context', 'end_chat', 'send_buttons', 'send_list', 'knowledge_search', 'transfer_to_node'].includes(tool.type) && (
                         <div style={{ marginBottom: '0.5rem' }}>
                           <label style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>
                             Parâmetros (JSON Schema)
@@ -3109,6 +3250,7 @@ Regras:
                 <option value="save_context">💾 Salvar Dados na Conversa</option>
                 <option value="send_buttons">🔘 Enviar Botões</option>
                 <option value="send_list">📋 Enviar Lista</option>
+                <option value="knowledge_search">🧠 Base de Conhecimento (RAG)</option>
                 <option value="transfer_department">👤 Transferir Departamento</option>
                 <option value="end_chat">🏁 Finalizar Atendimento</option>
                 <option value="function">⚡ Custom Function</option>
@@ -3283,7 +3425,62 @@ Regras:
               </>
             )}
 
-            {!['transfer_department', 'save_context', 'end_chat', 'send_buttons', 'send_list'].includes(data.tool_type) && (
+            {(data.tool_type) === 'knowledge_search' && (
+              <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div>
+                  <label>Base de Conhecimento</label>
+                  {loadingKnowledgeBases ? (
+                    <div style={{ padding: '0.4rem', fontSize: '0.8rem', color: '#888' }}>Carregando...</div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                      <select
+                        value={data.knowledge_base_id || ''}
+                        onChange={(e) => updateData('knowledge_base_id', e.target.value ? parseInt(e.target.value) : null)}
+                        style={{ fontSize: '0.9rem', flex: 1 }}
+                      >
+                        <option value="">Selecione uma base...</option>
+                        {knowledgeBases.map((kb) => (
+                          <option key={kb.id} value={kb.id}>{kb.name} ({kb.chunk_count} chunks)</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => openKBPanel((newKbId) => {
+                          if (newKbId) updateData('knowledge_base_id', newKbId)
+                        })}
+                        style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', backgroundColor: '#8B5CF6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >+ Nova</button>
+                    </div>
+                  )}
+                  {data.knowledge_base_id && (
+                    <button
+                      type="button"
+                      onClick={() => openKBPanel()}
+                      style={{ marginTop: '0.35rem', padding: '0.35rem 0.6rem', fontSize: '0.75rem', backgroundColor: 'transparent', color: '#8B5CF6', border: '1px solid #8B5CF640', borderRadius: '6px', cursor: 'pointer', width: '100%' }}
+                    >
+                      🧠 Gerenciar base (upload, textos, configurações)
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '0.8rem', display: 'block', marginBottom: '0.2rem' }}>Top K</label>
+                    <input type="number" value={data.top_k || 5} onChange={(e) => updateData('top_k', parseInt(e.target.value) || 5)} min={1} max={20} style={{ fontSize: '0.85rem' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '0.8rem', display: 'block', marginBottom: '0.2rem' }}>Score Mín.</label>
+                    <input type="number" value={data.min_score ?? 0.3} onChange={(e) => updateData('min_score', parseFloat(e.target.value) || 0)} min={0} max={1} step={0.05} style={{ fontSize: '0.85rem' }} />
+                  </div>
+                </div>
+                <FieldHelper
+                  title="Como funciona o RAG"
+                  description="A IA busca na base de conhecimento os trechos mais relevantes para a pergunta do usuário. Top K = quantos trechos retornar. Score Mínimo = relevância mínima."
+                />
+              </div>
+            )}
+
+            {!['transfer_department', 'save_context', 'end_chat', 'send_buttons', 'send_list', 'knowledge_search', 'transfer_to_node'].includes(data.tool_type) && (
             <div className="form-group">
               <label>Parâmetros (JSON Schema)</label>
               <textarea
@@ -3603,6 +3800,13 @@ Regras:
 
       {showFieldsModal && (
         <ContextFieldsModal onClose={() => setShowFieldsModal(false)} />
+      )}
+
+      {showKBPanel && (
+        <KnowledgeBasePanel
+          flowId={flowId}
+          onClose={closeKBPanel}
+        />
       )}
     </div>
   )
