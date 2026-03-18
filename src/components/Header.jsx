@@ -77,6 +77,37 @@ function Header({ children }) {
         flexShrink: 0,
       }}>
         <button
+          onClick={() => window.open('/docs', '_blank')}
+          title="Guia completo"
+          style={{
+            height: '30px',
+            padding: '0 0.5rem',
+            backgroundColor: 'transparent',
+            color: 'var(--header-btn-text)',
+            border: '1px solid var(--header-btn-border)',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.3rem',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'var(--accent)'
+            e.currentTarget.style.color = 'var(--accent)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'var(--header-btn-border)'
+            e.currentTarget.style.color = 'var(--header-btn-text)'
+          }}
+        >
+          <span style={{ fontSize: '0.85rem' }}>📖</span>
+          Guia
+        </button>
+
+        <button
           onClick={toggleTheme}
           title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
           style={{

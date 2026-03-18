@@ -26,6 +26,27 @@ const slides = [
             </div>
           ))}
         </div>
+        <a
+          href="/docs"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            marginTop: '0.75rem',
+            padding: '0.6rem 0.75rem',
+            borderRadius: '8px',
+            backgroundColor: 'rgba(99, 102, 241, 0.08)',
+            border: '1px solid rgba(99, 102, 241, 0.2)',
+            color: '#6366f1',
+            fontSize: '0.82rem',
+            fontWeight: 500,
+            textDecoration: 'none',
+          }}
+        >
+          📖 Acesse tambem o Guia Completo com exemplos reais e cenarios do dia a dia
+        </a>
       </>
     ),
   },
