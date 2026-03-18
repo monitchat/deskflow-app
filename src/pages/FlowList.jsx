@@ -4,6 +4,7 @@ import api from '../config/axios'
 import Header from '../components/Header'
 import AccountsPanel from '../components/AccountsPanel'
 import ConfirmModal from '../components/ConfirmModal'
+import TutorialModal from '../components/TutorialModal'
 
 const styles = {
   page: {
@@ -180,6 +181,7 @@ function FlowList() {
   const [filterCompanyId, setFilterCompanyId] = useState('')
   const [confirmModal, setConfirmModal] = useState(null)
   const confirmResolveRef = useRef(null)
+  const [showTutorial, setShowTutorial] = useState(false)
   const isMaster = localStorage.getItem('user_is_master') === 'true'
   const isAdmin = localStorage.getItem('user_is_admin') === 'true'
   const navigate = useNavigate()
@@ -385,6 +387,35 @@ function FlowList() {
                 ))}
               </select>
             )}
+            <button
+              onClick={() => setShowTutorial(true)}
+              style={{
+                padding: '0.6rem',
+                border: '1px solid var(--border)',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                backgroundColor: 'var(--bg-surface)',
+                color: 'var(--text-muted)',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '38px',
+                height: '38px',
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.borderColor = '#6366f1'
+                e.target.style.color = '#6366f1'
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.borderColor = 'var(--border)'
+                e.target.style.color = 'var(--text-muted)'
+              }}
+              title="Tutorial"
+            >
+              ?
+            </button>
             {isAdmin && (
               <>
                 <button
@@ -687,6 +718,10 @@ function FlowList() {
           flowId={accountsFlowId}
           onClose={() => setAccountsFlowId(null)}
         />
+      )}
+
+      {showTutorial && (
+        <TutorialModal onClose={() => setShowTutorial(false)} />
       )}
 
       {confirmModal && (
