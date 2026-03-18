@@ -923,7 +923,22 @@ function CustomNode({ data, type, selected, id }) {
 
         <Handle type="source" position={Position.Bottom} />
 
-        {/* Barra de tools abaixo do nó */}
+        {/* Sub Agentes — lateral direita */}
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="subagents"
+          isConnectable={true}
+          style={{
+            background: '#06b6d4',
+            width: '10px',
+            height: '10px',
+            cursor: 'crosshair',
+            pointerEvents: 'all',
+          }}
+        />
+
+        {/* Tools — abaixo do nó */}
         <div style={{
           borderTop: '1px dashed #FF9800',
           padding: '4px 8px',

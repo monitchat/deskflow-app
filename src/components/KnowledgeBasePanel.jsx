@@ -115,9 +115,13 @@ function KnowledgeBasePanel({ flowId, onClose }) {
   }
 
   const handleUpload = async (e) => {
-    const file = e.target.files[0]
-    if (!file || !form.api_key) {
-      setError('Selecione um arquivo e informe a API key')
+    const file = e.target?.files?.[0]
+    if (!file) {
+      setError('Nenhum arquivo selecionado')
+      return
+    }
+    if (!form.api_key) {
+      setError('Informe a API key antes de enviar')
       return
     }
 
@@ -128,16 +132,19 @@ function KnowledgeBasePanel({ flowId, onClose }) {
       formData.append('file', file)
       formData.append('api_key', form.api_key)
 
-      await api.post(
+      const res = await api.post(
         `/api/v1/knowledge/bases/${selectedBase.id}/upload`,
         formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
+        { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 }
       )
 
+      console.log('Upload response:', res.data)
+
       await loadDocuments(selectedBase.id)
-      fileInputRef.current.value = ''
+      if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (err) {
-      setError(err.response?.data?.error || 'Erro ao enviar arquivo')
+      console.error('Upload error:', err.response?.data || err)
+      setError(err.response?.data?.error || 'Erro ao enviar arquivo: ' + err.message)
     } finally {
       setUploading(false)
     }
@@ -215,7 +222,7 @@ function KnowledgeBasePanel({ flowId, onClose }) {
         <div style={{
           textAlign: 'center',
           padding: '2rem 1rem',
-          color: 'var(--text-dim, #9CA3AF)',
+          color: '#94a3b8',
         }}>
           <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🧠</div>
           <p style={{ fontWeight: 600, color: 'var(--text, #e2e8f0)', marginBottom: '0.5rem' }}>
@@ -239,8 +246,8 @@ function KnowledgeBasePanel({ flowId, onClose }) {
               style={{
                 padding: '0.75rem 1rem',
                 borderRadius: '8px',
-                border: '1px solid var(--border, #E5E7EB)',
-                backgroundColor: 'var(--bg-secondary, #F9FAFB)',
+                border: '1px solid #334155',
+                backgroundColor: '#0f172a',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -250,10 +257,10 @@ function KnowledgeBasePanel({ flowId, onClose }) {
             >
               <span style={{ fontSize: '1.3rem' }}>🧠</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text, #111)' }}>
+                <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#f1f5f9' }}>
                   {kb.name}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-dim, #9CA3AF)', display: 'flex', gap: '0.75rem', marginTop: '0.15rem' }}>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'flex', gap: '0.75rem', marginTop: '0.15rem' }}>
                   <span>{kb.chunk_count} chunks</span>
                   <span>{kb.embedding_provider}/{kb.embedding_model}</span>
                 </div>
@@ -407,7 +414,7 @@ function KnowledgeBasePanel({ flowId, onClose }) {
         backgroundColor: 'rgba(99, 102, 241, 0.06)',
         border: '1px solid rgba(99, 102, 241, 0.15)',
         fontSize: '0.78rem',
-        color: 'var(--text-dim, #6B7280)',
+        color: '#94a3b8',
         lineHeight: 1.5,
       }}>
         <strong>Dica:</strong> Chunks menores (256-512) + janela de contexto 1-2 é o melhor equilíbrio
@@ -451,37 +458,40 @@ function KnowledgeBasePanel({ flowId, onClose }) {
       </div>
 
       {/* Upload */}
-      <div
-        onClick={() => form.api_key && !uploading && fileInputRef.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#6366f1' }}
-        onDragLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border, #334155)' }}
+      <input
+        ref={fileInputRef}
+        id="kb-file-upload"
+        type="file"
+        accept=".pdf,.txt,.csv,.md,.text"
+        onChange={(e) => { handleUpload(e); if (fileInputRef.current) fileInputRef.current.value = '' }}
+        disabled={uploading || !form.api_key}
+        style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
+      />
+      <label
+        htmlFor={form.api_key && !uploading ? 'kb-file-upload' : undefined}
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.style.borderColor = '#6366f1' }}
+        onDragLeave={(e) => { e.stopPropagation(); e.currentTarget.style.borderColor = '#334155' }}
         onDrop={(e) => {
           e.preventDefault()
-          e.currentTarget.style.borderColor = 'var(--border, #334155)'
+          e.stopPropagation()
+          e.currentTarget.style.borderColor = '#334155'
           if (form.api_key && !uploading && e.dataTransfer.files[0]) {
-            const fakeEvent = { target: { files: [e.dataTransfer.files[0]] } }
-            handleUpload(fakeEvent)
+            handleUpload({ target: { files: [e.dataTransfer.files[0]] } })
           }
         }}
         style={{
+          display: 'block',
           padding: '1.25rem',
           borderRadius: '10px',
-          border: `2px dashed ${form.api_key ? 'var(--border, #334155)' : '#ef444450'}`,
+          border: `2px dashed ${form.api_key ? '#334155' : '#ef444450'}`,
           textAlign: 'center',
-          backgroundColor: 'var(--bg-secondary, #0f172a)',
+          backgroundColor: '#0f172a',
           cursor: form.api_key && !uploading ? 'pointer' : 'not-allowed',
           opacity: form.api_key ? 1 : 0.6,
           transition: 'all 0.15s',
+          margin: 0,
         }}
       >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,.txt,.csv,.md,.text"
-          onChange={handleUpload}
-          disabled={uploading || !form.api_key}
-          style={{ display: 'none' }}
-        />
         {uploading ? (
           <>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>⏳</div>
@@ -492,15 +502,15 @@ function KnowledgeBasePanel({ flowId, onClose }) {
         ) : (
           <>
             <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📄</div>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-primary, #e2e8f0)', margin: '0 0 0.25rem', fontWeight: 500 }}>
+            <p style={{ fontSize: '0.82rem', color: '#e2e8f0', margin: '0 0 0.25rem', fontWeight: 500 }}>
               {form.api_key ? 'Clique ou arraste um arquivo aqui' : 'Informe a API Key acima primeiro'}
             </p>
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-dim, #64748b)', margin: 0 }}>
+            <p style={{ fontSize: '0.72rem', color: '#64748b', margin: 0 }}>
               PDF, TXT, CSV ou Markdown
             </p>
           </>
         )}
-      </div>
+      </label>
 
       {/* Adicionar texto */}
       <button
@@ -523,7 +533,7 @@ function KnowledgeBasePanel({ flowId, onClose }) {
           Documentos ({documents.length})
         </label>
         {documents.length === 0 ? (
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-dim, #9CA3AF)', textAlign: 'center', padding: '1rem' }}>
+          <p style={{ fontSize: '0.82rem', color: '#94a3b8', textAlign: 'center', padding: '1rem' }}>
             Nenhum documento ainda. Envie arquivos ou adicione textos acima.
           </p>
         ) : (
@@ -539,7 +549,7 @@ function KnowledgeBasePanel({ flowId, onClose }) {
                     gap: '0.5rem',
                     padding: '0.5rem 0.6rem',
                     borderRadius: '6px',
-                    border: '1px solid var(--border, #E5E7EB)',
+                    border: '1px solid #334155',
                     fontSize: '0.82rem',
                   }}
                 >
@@ -547,14 +557,14 @@ function KnowledgeBasePanel({ flowId, onClose }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
                       fontWeight: 500,
-                      color: 'var(--text, #111)',
+                      color: '#f1f5f9',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
                     }}>
                       {doc.name}
                     </div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-dim, #9CA3AF)', display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'flex', gap: '0.5rem' }}>
                       {doc.chunk_count > 0 && <span>{doc.chunk_count} chunks</span>}
                       {doc.file_size && <span>{(doc.file_size / 1024).toFixed(0)} KB</span>}
                     </div>
@@ -590,8 +600,8 @@ function KnowledgeBasePanel({ flowId, onClose }) {
         <div style={{
           padding: '0.75rem',
           borderRadius: '10px',
-          border: '1px solid var(--border, #E5E7EB)',
-          backgroundColor: 'var(--bg-secondary, #F9FAFB)',
+          border: '1px solid #334155',
+          backgroundColor: '#0f172a',
         }}>
           <label style={{ ...labelStyle, marginBottom: '0.35rem', display: 'block' }}>🔍 Testar Busca</label>
           <div style={{ display: 'flex', gap: '0.35rem' }}>
@@ -622,12 +632,12 @@ function KnowledgeBasePanel({ flowId, onClose }) {
                     <div key={i} style={{
                       padding: '0.5rem',
                       borderRadius: '6px',
-                      backgroundColor: 'var(--bg, #fff)',
-                      border: '1px solid var(--border, #E5E7EB)',
+                      backgroundColor: '#1e293b',
+                      border: '1px solid #334155',
                       fontSize: '0.78rem',
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                        <span style={{ fontWeight: 600, color: 'var(--text, #111)' }}>Trecho {i + 1}</span>
+                        <span style={{ fontWeight: 600, color: '#f1f5f9' }}>Trecho {i + 1}</span>
                         <span style={{
                           fontSize: '0.68rem',
                           padding: '0.1rem 0.35rem',
@@ -639,7 +649,7 @@ function KnowledgeBasePanel({ flowId, onClose }) {
                           {(r.score * 100).toFixed(0)}%
                         </span>
                       </div>
-                      <div style={{ color: 'var(--text-dim, #6B7280)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                      <div style={{ color: '#94a3b8', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                         {r.content.substring(0, 300)}{r.content.length > 300 ? '...' : ''}
                       </div>
                     </div>
@@ -698,14 +708,18 @@ function KnowledgeBasePanel({ flowId, onClose }) {
     : 'Base de Conhecimento'
 
   return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      display: 'flex', justifyContent: 'center', alignItems: 'center',
-      zIndex: 10000,
-    }}>
+    <div
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        display: 'flex', justifyContent: 'center', alignItems: 'center',
+        zIndex: 15000,
+      }}
+    >
       <div style={{
-        backgroundColor: 'var(--bg, #fff)',
+        backgroundColor: '#1e293b',
         borderRadius: '14px',
         width: '600px',
         maxWidth: '92vw',
@@ -720,7 +734,7 @@ function KnowledgeBasePanel({ flowId, onClose }) {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          borderBottom: '1px solid var(--border, #eee)',
+          borderBottom: '1px solid #334155',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {(view === 'detail' || view === 'addText') && (
@@ -735,11 +749,11 @@ function KnowledgeBasePanel({ flowId, onClose }) {
               </button>
             )}
             <div>
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text, #111)' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#f1f5f9' }}>
                 🧠 {title}
               </h3>
               {view === 'list' && (
-                <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-dim, #9CA3AF)' }}>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#94a3b8' }}>
                   Documentos e textos para seus agentes de IA consultarem
                 </p>
               )}
@@ -751,7 +765,7 @@ function KnowledgeBasePanel({ flowId, onClose }) {
             )}
             <button
               onClick={onClose}
-              style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', color: 'var(--text-dim, #999)' }}
+              style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', color: '#94a3b8' }}
             >
               &times;
             </button>
@@ -793,7 +807,7 @@ const inputStyle = {
   borderRadius: '6px',
   border: '1px solid var(--border, #334155)',
   backgroundColor: 'var(--bg-input, #1e293b)',
-  color: 'var(--text-primary, #e2e8f0)',
+  color: '#e2e8f0',
   fontSize: '0.85rem',
   boxSizing: 'border-box',
   outline: 'none',
@@ -801,16 +815,16 @@ const inputStyle = {
 
 const labelStyle = {
   display: 'block',
-  fontSize: '0.8rem',
+  fontSize: '0.82rem',
   fontWeight: 600,
-  color: 'var(--text-primary, #e2e8f0)',
-  marginBottom: '0.25rem',
+  color: '#e2e8f0',
+  marginBottom: '0.3rem',
 }
 
 const helpStyle = {
   display: 'block',
-  fontSize: '0.72rem',
-  color: 'var(--text-dim, #64748b)',
+  fontSize: '0.74rem',
+  color: '#94a3b8',
   marginTop: '0.2rem',
 }
 
@@ -827,9 +841,9 @@ const btnPrimary = {
 
 const btnSecondary = {
   padding: '0.45rem 0.9rem',
-  backgroundColor: 'var(--bg-hover, #1e293b)',
-  color: 'var(--text-primary, #e2e8f0)',
-  border: '1px solid var(--border, #334155)',
+  backgroundColor: '#0f172a',
+  color: '#e2e8f0',
+  border: '1px solid #334155',
   borderRadius: '8px',
   cursor: 'pointer',
   fontSize: '0.82rem',

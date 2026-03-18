@@ -3,6 +3,7 @@ import api from '../config/axios'
 import ContextFieldsModal from './ContextFieldsModal'
 import AutocompleteTextarea from './AutocompleteTextarea'
 import FieldHelper from './FieldHelper'
+import ApiKeyField from './ApiKeyField'
 import KnowledgeBasePanel from './KnowledgeBasePanel'
 
 function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClose, flowId }) {
@@ -154,29 +155,6 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
     }
   }
 
-  const createQuickKB = async (name) => {
-    if (!flowId || !name.trim()) return null
-    try {
-      const res = await api.post('/api/v1/knowledge/bases', {
-        flow_id: parseInt(flowId),
-        name: name.trim(),
-        embedding_provider: 'openai',
-        embedding_model: 'text-embedding-3-small',
-        chunk_size: 512,
-        chunk_overlap: 50,
-        chunk_strategy: 'size',
-        context_window: 1,
-      })
-      if (res.data.success) {
-        await fetchKnowledgeBases()
-        return res.data.data.id
-      }
-    } catch (err) {
-      console.error('Error creating knowledge base:', err)
-    }
-    return null
-  }
-
   const openKBPanel = (callback) => {
     setKbPanelCallback(() => callback)
     setShowKBPanel(true)
@@ -253,8 +231,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
     } catch (error) {
       console.error('Error fetching OpenAI models:', error)
       setAiModelsError(error.message || 'Erro ao buscar modelos da OpenAI')
-      // Define modelos padrão em caso de erro
-      setAiModels(['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'])
+      setAiModels([])
     } finally {
       setLoadingAiModels(false)
     }
@@ -292,8 +269,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
     } catch (error) {
       console.error('Error fetching Gemini models:', error)
       setAiModelsError(error.message || 'Erro ao buscar modelos do Gemini')
-      // Define modelos padrão em caso de erro
-      setAiModels(['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'])
+      setAiModels([])
     } finally {
       setLoadingAiModels(false)
     }
@@ -361,23 +337,51 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
     const apiKey = data.api_key
     const provider = data.ai_provider || 'openai'
 
-    // Só busca se houver API key configurada
     if (!apiKey || apiKey.trim().length < 10) {
       setAiModels([])
       return
     }
 
-    // Debounce de 500ms para evitar múltiplas chamadas durante digitação
-    const timer = setTimeout(() => {
+    // env — não resolve no frontend
+    if (apiKey.includes('${{env.')) {
+      setAiModels([])
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      let resolvedKey = apiKey
+
+      // Se for variável de secret, resolve o valor real
+      if (apiKey.includes('${{secret.')) {
+        const match = apiKey.match(/\$\{\{secret\.(.+?)\}\}/)
+        if (match && flowId) {
+          try {
+            const res = await api.get(`/api/v1/flows/${flowId}/secrets/resolve/${match[1]}`)
+            if (res.data.success && res.data.data) {
+              resolvedKey = res.data.data
+            } else {
+              setAiModels([])
+              return
+            }
+          } catch {
+            setAiModels([])
+            return
+          }
+        } else {
+          setAiModels([])
+          return
+        }
+      }
+
       if (provider === 'openai') {
-        fetchOpenAIModels(apiKey)
+        fetchOpenAIModels(resolvedKey)
       } else if (provider === 'gemini') {
-        fetchGeminiModels(apiKey)
+        fetchGeminiModels(resolvedKey)
       }
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [node.type, data.api_key, data.ai_provider])
+  }, [node.type, data.api_key, data.ai_provider, flowId])
 
   // Listener para fechar modal com ESC
   useEffect(() => {
@@ -2128,18 +2132,12 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
 
             <div className="form-group">
               <label>API Key</label>
-              <input
-                type="password"
+              <ApiKeyField
                 value={data.api_key || ''}
-                onChange={(e) => updateData('api_key', e.target.value)}
-                placeholder={data.ai_provider === 'gemini' ? 'AIza...' : 'sk-...'}
+                onChange={(v) => updateData('api_key', v)}
+                flowId={flowId}
+                provider={data.ai_provider}
               />
-              <small style={{ color: '#666' }}>
-                {data.ai_provider === 'openai'
-                  ? 'Obtenha em: https://platform.openai.com/api-keys'
-                  : 'Obtenha em: https://aistudio.google.com/apikey'
-                }
-              </small>
             </div>
 
             <div className="form-group">
@@ -2504,21 +2502,12 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
 
             <div className="form-group">
               <label>API Key</label>
-              <input
-                type="password"
+              <ApiKeyField
                 value={data.api_key || ''}
-                onChange={(e) => updateData('api_key', e.target.value)}
-                placeholder={
-                  data.ai_provider === 'gemini' ? 'AIza...' :
-                  data.ai_provider === 'azure' ? 'Azure API Key' :
-                  'sk-...'
-                }
+                onChange={(v) => updateData('api_key', v)}
+                flowId={flowId}
+                provider={data.ai_provider}
               />
-              <small style={{ color: '#666' }}>
-                {data.ai_provider === 'openai' && 'Obtenha em: https://platform.openai.com/api-keys'}
-                {data.ai_provider === 'gemini' && 'Obtenha em: https://aistudio.google.com/apikey'}
-                {data.ai_provider === 'azure' && 'Obtenha no Azure Portal'}
-              </small>
             </div>
 
             {data.ai_provider === 'azure' && (
@@ -2673,6 +2662,21 @@ Regras:
             </div>
 
             <div className="form-group">
+              <label>Mensagem de Transição (opcional)</label>
+              <textarea
+                value={data.transition_message || ''}
+                onChange={(e) => updateData('transition_message', e.target.value)}
+                placeholder="Ex: Vou transferir você para nosso especialista..."
+                rows={2}
+              />
+              <FieldHelper
+                description="Enviada quando este agente transfere a conversa para outro agente ou nó usando a tool 'Ir para'. Se vazio, transfere silenciosamente. Aceita variáveis do contexto."
+                example="Um momento, vou transferir você para nosso especialista em ${{assunto}}. 😊"
+                onUseExample={(ex) => updateData('transition_message', ex)}
+              />
+            </div>
+
+            <div className="form-group">
               <label>Salvar resposta em (opcional)</label>
               <input
                 type="text"
@@ -2748,6 +2752,7 @@ Regras:
                   send_buttons: '🔘 Botões',
                   send_list: '📋 Lista',
                   knowledge_search: '🧠 RAG',
+                  transfer_to_node: '🔀 Ir para',
                   transfer_department: '👤 Transferir',
                   save_context: '💾 Salvar Dados',
                   end_chat: '🏁 Finalizar',
@@ -2993,18 +2998,17 @@ Regras:
                           </div>
                         )}
 
-                        {tool.type === 'knowledge_search' && (() => {
-                          const selectedKbId = tool.knowledge_base_id
-                          const docs = kbDocs[selectedKbId] || []
-                          const STATUS_COLORS = {
-                            ready: { bg: 'rgba(34,197,94,0.15)', color: '#22c55e', label: 'Pronto' },
-                            processing: { bg: 'rgba(59,130,246,0.15)', color: '#3b82f6', label: 'Processando...' },
-                            pending: { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b', label: 'Pendente' },
-                            error: { bg: 'rgba(239,68,68,0.15)', color: '#ef4444', label: 'Erro' },
-                          }
-                          return (
+                        {tool.type === 'transfer_to_node' && (
+                          <div style={{ marginBottom: '0.5rem' }}>
+                            <FieldHelper
+                              title="Como funciona"
+                              description="Conecte os nós de destino na saída do agente. A IA vai detectar automaticamente quais nós estão conectados e transferir quando o prompt indicar. Exemplo: conecte um 'Agente Futebol' na saída e instrua no prompt 'se o assunto for futebol, transfira para o especialista'."
+                            />
+                          </div>
+                        )}
+
+                        {tool.type === 'knowledge_search' && (
                           <div style={{ marginBottom: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            {/* Seletor de base */}
                             <div>
                               <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Base de Conhecimento</label>
                               {loadingKnowledgeBases ? (
@@ -3012,13 +3016,11 @@ Regras:
                               ) : (
                                 <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.2rem' }}>
                                   <select
-                                    value={selectedKbId || ''}
+                                    value={tool.knowledge_base_id || ''}
                                     onChange={(e) => {
                                       const tools = [...(data.tools || [])]
-                                      const newId = e.target.value ? parseInt(e.target.value) : null
-                                      tools[index] = { ...tool, knowledge_base_id: newId }
+                                      tools[index] = { ...tool, knowledge_base_id: e.target.value ? parseInt(e.target.value) : null }
                                       updateData('tools', tools)
-                                      if (newId) loadKbDocs(newId)
                                     }}
                                     style={{ fontSize: '0.85rem', flex: 1, padding: '0.4rem' }}
                                   >
@@ -3029,89 +3031,28 @@ Regras:
                                   </select>
                                   <button
                                     type="button"
-                                    onClick={() => setShowCreateKB(`tool_${index}`)}
+                                    onClick={() => openKBPanel((newKbId) => {
+                                      if (newKbId) {
+                                        const tools = [...(data.tools || [])]
+                                        tools[index] = { ...tool, knowledge_base_id: newKbId }
+                                        updateData('tools', tools)
+                                      }
+                                    })}
                                     style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', backgroundColor: '#8B5CF6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}
                                   >+ Nova</button>
                                 </div>
                               )}
-                              {showCreateKB === `tool_${index}` && (
-                                <div style={{ marginTop: '0.35rem', padding: '0.4rem', borderRadius: '6px', border: '1px solid #8B5CF640', backgroundColor: '#8B5CF608', display: 'flex', gap: '0.3rem' }}>
-                                  <input type="text" value={newKBName} onChange={(e) => setNewKBName(e.target.value)} placeholder="Nome da base" style={{ flex: 1, fontSize: '0.82rem', padding: '0.3rem 0.5rem', borderRadius: '4px', border: '1px solid #555' }}
-                                    onKeyDown={async (e) => { if (e.key === 'Enter' && newKBName.trim()) { const id = await createQuickKB(newKBName); if (id) { const t = [...(data.tools || [])]; t[index] = { ...tool, knowledge_base_id: id }; updateData('tools', t); setNewKBName(''); setShowCreateKB(false); loadKbDocs(id) } } }}
-                                  />
-                                  <button type="button" onClick={async () => { if (newKBName.trim()) { const id = await createQuickKB(newKBName); if (id) { const t = [...(data.tools || [])]; t[index] = { ...tool, knowledge_base_id: id }; updateData('tools', t); setNewKBName(''); setShowCreateKB(false); loadKbDocs(id) } } }} style={{ padding: '0.3rem 0.5rem', fontSize: '0.78rem', backgroundColor: '#8B5CF6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Criar</button>
-                                  <button type="button" onClick={() => { setShowCreateKB(false); setNewKBName('') }} style={{ padding: '0.3rem', fontSize: '0.78rem', background: 'none', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', color: '#999' }}>✕</button>
-                                </div>
+                              {tool.knowledge_base_id && (
+                                <button
+                                  type="button"
+                                  onClick={() => openKBPanel()}
+                                  style={{ marginTop: '0.35rem', padding: '0.35rem 0.6rem', fontSize: '0.75rem', backgroundColor: 'transparent', color: '#8B5CF6', border: '1px solid #8B5CF640', borderRadius: '6px', cursor: 'pointer', width: '100%' }}
+                                >
+                                  🧠 Gerenciar base (upload, textos, configurações)
+                                </button>
                               )}
                             </div>
 
-                            {/* Conteúdo da base selecionada */}
-                            {selectedKbId && (
-                              <>
-                                {/* API Key */}
-                                <div style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a' }}>
-                                  <label style={{ fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>🔑 API Key (embeddings)</label>
-                                  <input type="password" value={kbApiKey} onChange={(e) => setKbApiKey(e.target.value)} placeholder="sk-proj-..." style={{ fontSize: '0.82rem', width: '100%', padding: '0.3rem 0.5rem', marginTop: '0.2rem', borderRadius: '4px', border: '1px solid #334155', backgroundColor: '#1e293b', color: '#e2e8f0', boxSizing: 'border-box' }} />
-                                </div>
-
-                                {/* Upload */}
-                                <div
-                                  onClick={() => kbApiKey && !kbUploading && document.getElementById(`kb-file-${index}`)?.click()}
-                                  onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#8B5CF6' }}
-                                  onDragLeave={(e) => { e.currentTarget.style.borderColor = '#334155' }}
-                                  onDrop={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#334155'; if (kbApiKey && !kbUploading && e.dataTransfer.files[0]) handleKbUpload(selectedKbId, e.dataTransfer.files[0]) }}
-                                  style={{ padding: '0.75rem', borderRadius: '8px', border: `2px dashed ${kbApiKey ? '#334155' : '#ef444440'}`, textAlign: 'center', backgroundColor: '#0f172a', cursor: kbApiKey && !kbUploading ? 'pointer' : 'not-allowed', opacity: kbApiKey ? 1 : 0.5, transition: 'all 0.15s' }}
-                                >
-                                  <input id={`kb-file-${index}`} type="file" accept=".pdf,.txt,.csv,.md" onChange={(e) => { if (e.target.files[0]) handleKbUpload(selectedKbId, e.target.files[0]); e.target.value = '' }} style={{ display: 'none' }} />
-                                  {kbUploading ? (
-                                    <div style={{ fontSize: '0.78rem', color: '#3b82f6' }}>⏳ Processando...</div>
-                                  ) : (
-                                    <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-                                      📄 {kbApiKey ? 'Clique ou arraste arquivo (PDF, TXT, CSV, MD)' : 'Informe a API Key primeiro'}
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Adicionar texto */}
-                                {!kbShowText ? (
-                                  <button type="button" onClick={() => setKbShowText(true)} disabled={!kbApiKey} style={{ padding: '0.35rem', fontSize: '0.78rem', backgroundColor: 'transparent', color: '#8B5CF6', border: '1px solid #8B5CF640', borderRadius: '6px', cursor: kbApiKey ? 'pointer' : 'not-allowed', opacity: kbApiKey ? 1 : 0.5 }}>
-                                    ✏️ Adicionar texto manual
-                                  </button>
-                                ) : (
-                                  <div style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                    <input type="text" value={kbTextForm.name} onChange={(e) => setKbTextForm({ ...kbTextForm, name: e.target.value })} placeholder="Título (ex: FAQ, Política)" style={{ fontSize: '0.82rem', padding: '0.3rem 0.5rem', borderRadius: '4px', border: '1px solid #334155', backgroundColor: '#1e293b', color: '#e2e8f0' }} />
-                                    <textarea value={kbTextForm.text} onChange={(e) => setKbTextForm({ ...kbTextForm, text: e.target.value })} placeholder="Cole o texto aqui..." rows={4} style={{ fontSize: '0.82rem', padding: '0.3rem 0.5rem', borderRadius: '4px', border: '1px solid #334155', backgroundColor: '#1e293b', color: '#e2e8f0', resize: 'vertical' }} />
-                                    <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'flex-end' }}>
-                                      <button type="button" onClick={() => { setKbShowText(false); setKbTextForm({ name: '', text: '' }) }} style={{ padding: '0.3rem 0.5rem', fontSize: '0.75rem', background: 'none', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', color: '#999' }}>Cancelar</button>
-                                      <button type="button" onClick={() => handleKbAddText(selectedKbId)} disabled={!kbTextForm.text.trim() || kbUploading} style={{ padding: '0.3rem 0.5rem', fontSize: '0.75rem', backgroundColor: '#8B5CF6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', opacity: kbTextForm.text.trim() ? 1 : 0.5 }}>
-                                        {kbUploading ? '...' : 'Adicionar'}
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Lista de documentos */}
-                                {docs.length > 0 && (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                    <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b' }}>DOCUMENTOS ({docs.length})</label>
-                                    {docs.map((doc) => {
-                                      const st = STATUS_COLORS[doc.status] || STATUS_COLORS.pending
-                                      return (
-                                        <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.4rem', borderRadius: '4px', border: '1px solid #1e293b', fontSize: '0.75rem' }}>
-                                          <span>{doc.source === 'manual' ? '✏️' : '📄'}</span>
-                                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#e2e8f0' }}>{doc.name}</span>
-                                          {doc.chunk_count > 0 && <span style={{ color: '#64748b', fontSize: '0.68rem' }}>{doc.chunk_count}ch</span>}
-                                          <span style={{ fontSize: '0.62rem', fontWeight: 600, padding: '0.1rem 0.3rem', borderRadius: '8px', backgroundColor: st.bg, color: st.color }}>{st.label}</span>
-                                          <button type="button" onClick={() => handleKbDeleteDoc(selectedKbId, doc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.4, fontSize: '0.75rem', padding: '0 0.15rem' }}>🗑️</button>
-                                        </div>
-                                      )
-                                    })}
-                                  </div>
-                                )}
-                              </>
-                            )}
-
-                            {/* Top K e Score */}
                             <div style={{ display: 'flex', gap: '0.75rem' }}>
                               <div>
                                 <label style={{ fontSize: '0.78rem', fontWeight: 'normal', display: 'block', marginBottom: '0.2rem' }}>Top K</label>
@@ -3124,9 +3065,12 @@ Regras:
                                 <small style={{ color: '#666', fontSize: '0.68rem', display: 'block' }}>0-1 (0.3=30%)</small>
                               </div>
                             </div>
+                            <FieldHelper
+                              title="Como funciona o RAG"
+                              description="A IA busca na base de conhecimento os trechos mais relevantes para a pergunta do usuário. Top K = quantos trechos retornar. Score Mínimo = relevância mínima (0.3 = 30%)."
+                            />
                           </div>
-                          )
-                        })()}
+                        )}
 
                         {tool.type === 'function' && (
                           <>
@@ -3178,7 +3122,7 @@ Regras:
                           </>
                         )}
 
-                        {!['transfer_department', 'save_context', 'end_chat', 'send_buttons', 'send_list', 'knowledge_search'].includes(tool.type) && (
+                        {!['transfer_department', 'save_context', 'end_chat', 'send_buttons', 'send_list', 'knowledge_search', 'transfer_to_node'].includes(tool.type) && (
                         <div style={{ marginBottom: '0.5rem' }}>
                           <label style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>
                             Parâmetros (JSON Schema)
@@ -3481,11 +3425,7 @@ Regras:
               </>
             )}
 
-            {(data.tool_type) === 'knowledge_search' && (() => {
-              const selectedKbId = data.knowledge_base_id
-              const docs = kbDocs[selectedKbId] || []
-              const ST = { ready: { bg: 'rgba(34,197,94,0.15)', color: '#22c55e', label: 'Pronto' }, processing: { bg: 'rgba(59,130,246,0.15)', color: '#3b82f6', label: 'Processando...' }, pending: { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b', label: 'Pendente' }, error: { bg: 'rgba(239,68,68,0.15)', color: '#ef4444', label: 'Erro' } }
-              return (
+            {(data.tool_type) === 'knowledge_search' && (
               <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <div>
                   <label>Base de Conhecimento</label>
@@ -3493,70 +3433,35 @@ Regras:
                     <div style={{ padding: '0.4rem', fontSize: '0.8rem', color: '#888' }}>Carregando...</div>
                   ) : (
                     <div style={{ display: 'flex', gap: '0.35rem' }}>
-                      <select value={selectedKbId || ''} onChange={(e) => { const v = e.target.value ? parseInt(e.target.value) : null; updateData('knowledge_base_id', v); if (v) loadKbDocs(v) }} style={{ fontSize: '0.9rem', flex: 1 }}>
+                      <select
+                        value={data.knowledge_base_id || ''}
+                        onChange={(e) => updateData('knowledge_base_id', e.target.value ? parseInt(e.target.value) : null)}
+                        style={{ fontSize: '0.9rem', flex: 1 }}
+                      >
                         <option value="">Selecione uma base...</option>
-                        {knowledgeBases.map((kb) => (<option key={kb.id} value={kb.id}>{kb.name} ({kb.chunk_count} chunks)</option>))}
+                        {knowledgeBases.map((kb) => (
+                          <option key={kb.id} value={kb.id}>{kb.name} ({kb.chunk_count} chunks)</option>
+                        ))}
                       </select>
-                      <button type="button" onClick={() => setShowCreateKB('standalone')} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', backgroundColor: '#8B5CF6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Nova</button>
+                      <button
+                        type="button"
+                        onClick={() => openKBPanel((newKbId) => {
+                          if (newKbId) updateData('knowledge_base_id', newKbId)
+                        })}
+                        style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', backgroundColor: '#8B5CF6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >+ Nova</button>
                     </div>
                   )}
-                  {showCreateKB === 'standalone' && (
-                    <div style={{ marginTop: '0.35rem', padding: '0.4rem', borderRadius: '6px', border: '1px solid #8B5CF640', backgroundColor: '#8B5CF608', display: 'flex', gap: '0.3rem' }}>
-                      <input type="text" value={newKBName} onChange={(e) => setNewKBName(e.target.value)} placeholder="Nome da base" style={{ flex: 1, fontSize: '0.82rem', padding: '0.3rem 0.5rem', borderRadius: '4px', border: '1px solid #555' }}
-                        onKeyDown={async (e) => { if (e.key === 'Enter' && newKBName.trim()) { const id = await createQuickKB(newKBName); if (id) { updateData('knowledge_base_id', id); setNewKBName(''); setShowCreateKB(false); loadKbDocs(id) } } }}
-                      />
-                      <button type="button" onClick={async () => { if (newKBName.trim()) { const id = await createQuickKB(newKBName); if (id) { updateData('knowledge_base_id', id); setNewKBName(''); setShowCreateKB(false); loadKbDocs(id) } } }} style={{ padding: '0.3rem 0.5rem', fontSize: '0.78rem', backgroundColor: '#8B5CF6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Criar</button>
-                      <button type="button" onClick={() => { setShowCreateKB(false); setNewKBName('') }} style={{ padding: '0.3rem', fontSize: '0.78rem', background: 'none', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', color: '#999' }}>✕</button>
-                    </div>
+                  {data.knowledge_base_id && (
+                    <button
+                      type="button"
+                      onClick={() => openKBPanel()}
+                      style={{ marginTop: '0.35rem', padding: '0.35rem 0.6rem', fontSize: '0.75rem', backgroundColor: 'transparent', color: '#8B5CF6', border: '1px solid #8B5CF640', borderRadius: '6px', cursor: 'pointer', width: '100%' }}
+                    >
+                      🧠 Gerenciar base (upload, textos, configurações)
+                    </button>
                   )}
                 </div>
-
-                {selectedKbId && (
-                  <>
-                    <div style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a' }}>
-                      <label style={{ fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>🔑 API Key</label>
-                      <input type="password" value={kbApiKey} onChange={(e) => setKbApiKey(e.target.value)} placeholder="sk-proj-..." style={{ fontSize: '0.82rem', width: '100%', padding: '0.3rem 0.5rem', marginTop: '0.2rem', borderRadius: '4px', border: '1px solid #334155', backgroundColor: '#1e293b', color: '#e2e8f0', boxSizing: 'border-box' }} />
-                    </div>
-                    <div
-                      onClick={() => kbApiKey && !kbUploading && document.getElementById('kb-file-standalone')?.click()}
-                      onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#8B5CF6' }}
-                      onDragLeave={(e) => { e.currentTarget.style.borderColor = '#334155' }}
-                      onDrop={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#334155'; if (kbApiKey && !kbUploading && e.dataTransfer.files[0]) handleKbUpload(selectedKbId, e.dataTransfer.files[0]) }}
-                      style={{ padding: '0.75rem', borderRadius: '8px', border: `2px dashed ${kbApiKey ? '#334155' : '#ef444440'}`, textAlign: 'center', backgroundColor: '#0f172a', cursor: kbApiKey && !kbUploading ? 'pointer' : 'not-allowed', opacity: kbApiKey ? 1 : 0.5 }}
-                    >
-                      <input id="kb-file-standalone" type="file" accept=".pdf,.txt,.csv,.md" onChange={(e) => { if (e.target.files[0]) handleKbUpload(selectedKbId, e.target.files[0]); e.target.value = '' }} style={{ display: 'none' }} />
-                      <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-                        {kbUploading ? '⏳ Processando...' : kbApiKey ? '📄 Clique ou arraste arquivo' : '🔑 Informe a API Key primeiro'}
-                      </div>
-                    </div>
-                    {!kbShowText ? (
-                      <button type="button" onClick={() => setKbShowText(true)} disabled={!kbApiKey} style={{ padding: '0.35rem', fontSize: '0.78rem', backgroundColor: 'transparent', color: '#8B5CF6', border: '1px solid #8B5CF640', borderRadius: '6px', cursor: kbApiKey ? 'pointer' : 'not-allowed', opacity: kbApiKey ? 1 : 0.5 }}>✏️ Texto manual</button>
-                    ) : (
-                      <div style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                        <input type="text" value={kbTextForm.name} onChange={(e) => setKbTextForm({ ...kbTextForm, name: e.target.value })} placeholder="Título" style={{ fontSize: '0.82rem', padding: '0.3rem 0.5rem', borderRadius: '4px', border: '1px solid #334155', backgroundColor: '#1e293b', color: '#e2e8f0' }} />
-                        <textarea value={kbTextForm.text} onChange={(e) => setKbTextForm({ ...kbTextForm, text: e.target.value })} placeholder="Cole o texto..." rows={4} style={{ fontSize: '0.82rem', padding: '0.3rem 0.5rem', borderRadius: '4px', border: '1px solid #334155', backgroundColor: '#1e293b', color: '#e2e8f0', resize: 'vertical' }} />
-                        <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'flex-end' }}>
-                          <button type="button" onClick={() => { setKbShowText(false); setKbTextForm({ name: '', text: '' }) }} style={{ padding: '0.3rem 0.5rem', fontSize: '0.75rem', background: 'none', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', color: '#999' }}>Cancelar</button>
-                          <button type="button" onClick={() => handleKbAddText(selectedKbId)} disabled={!kbTextForm.text.trim() || kbUploading} style={{ padding: '0.3rem 0.5rem', fontSize: '0.75rem', backgroundColor: '#8B5CF6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', opacity: kbTextForm.text.trim() ? 1 : 0.5 }}>{kbUploading ? '...' : 'Adicionar'}</button>
-                        </div>
-                      </div>
-                    )}
-                    {docs.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                        <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b' }}>DOCUMENTOS ({docs.length})</label>
-                        {docs.map((doc) => { const st = ST[doc.status] || ST.pending; return (
-                          <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.4rem', borderRadius: '4px', border: '1px solid #1e293b', fontSize: '0.75rem' }}>
-                            <span>{doc.source === 'manual' ? '✏️' : '📄'}</span>
-                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#e2e8f0' }}>{doc.name}</span>
-                            {doc.chunk_count > 0 && <span style={{ color: '#64748b', fontSize: '0.68rem' }}>{doc.chunk_count}ch</span>}
-                            <span style={{ fontSize: '0.62rem', fontWeight: 600, padding: '0.1rem 0.3rem', borderRadius: '8px', backgroundColor: st.bg, color: st.color }}>{st.label}</span>
-                            <button type="button" onClick={() => handleKbDeleteDoc(selectedKbId, doc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.4, fontSize: '0.75rem' }}>🗑️</button>
-                          </div>
-                        )})}
-                      </div>
-                    )}
-                  </>
-                )}
 
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <div style={{ flex: 1 }}>
@@ -3568,11 +3473,14 @@ Regras:
                     <input type="number" value={data.min_score ?? 0.3} onChange={(e) => updateData('min_score', parseFloat(e.target.value) || 0)} min={0} max={1} step={0.05} style={{ fontSize: '0.85rem' }} />
                   </div>
                 </div>
+                <FieldHelper
+                  title="Como funciona o RAG"
+                  description="A IA busca na base de conhecimento os trechos mais relevantes para a pergunta do usuário. Top K = quantos trechos retornar. Score Mínimo = relevância mínima."
+                />
               </div>
-              )
-            })()}
+            )}
 
-            {!['transfer_department', 'save_context', 'end_chat', 'send_buttons', 'send_list', 'knowledge_search'].includes(data.tool_type) && (
+            {!['transfer_department', 'save_context', 'end_chat', 'send_buttons', 'send_list', 'knowledge_search', 'transfer_to_node'].includes(data.tool_type) && (
             <div className="form-group">
               <label>Parâmetros (JSON Schema)</label>
               <textarea
@@ -3892,6 +3800,13 @@ Regras:
 
       {showFieldsModal && (
         <ContextFieldsModal onClose={() => setShowFieldsModal(false)} />
+      )}
+
+      {showKBPanel && (
+        <KnowledgeBasePanel
+          flowId={flowId}
+          onClose={closeKBPanel}
+        />
       )}
     </div>
   )
