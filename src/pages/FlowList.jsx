@@ -5,6 +5,7 @@ import Header from '../components/Header'
 import AccountsPanel from '../components/AccountsPanel'
 import ConfirmModal from '../components/ConfirmModal'
 import TutorialModal from '../components/TutorialModal'
+import { useToast } from '../contexts/ToastContext'
 
 const styles = {
   page: {
@@ -185,6 +186,7 @@ function FlowList() {
   const isMaster = localStorage.getItem('user_is_master') === 'true'
   const isAdmin = localStorage.getItem('user_is_admin') === 'true'
   const navigate = useNavigate()
+  const toast = useToast()
 
   const showConfirm = useCallback((config) => {
     return new Promise((resolve) => {
@@ -214,14 +216,20 @@ function FlowList() {
   const companyIds = [...new Set(flows.map(f => f.company_id).filter(Boolean))].sort((a, b) => a - b)
 
   const handleDelete = async (id) => {
-    if (!confirm('Tem certeza que deseja excluir este fluxo?')) return
+    const accepted = await showConfirm({
+      title: 'Excluir fluxo',
+      message: 'Tem certeza que deseja excluir este fluxo? Esta ação não pode ser desfeita.',
+      confirmText: 'Excluir',
+      variant: 'destructive',
+    })
+    if (!accepted) return
 
     try {
       await api.delete(`/api/v1/flows/${id}`)
       loadFlows()
     } catch (error) {
       console.error('Error deleting flow:', error)
-      alert('Erro ao excluir fluxo')
+      toast.error('Erro ao excluir fluxo')
     }
   }
 
@@ -272,7 +280,7 @@ function FlowList() {
       loadFlows()
     } catch (error) {
       console.error('Error toggling flow:', error)
-      alert('Erro ao ativar/desativar fluxo')
+      toast.error('Erro ao ativar/desativar fluxo')
     }
   }
 
@@ -514,6 +522,11 @@ function FlowList() {
                 <span>
                   Criado em {new Date(flow.created_at).toLocaleDateString()}
                 </span>
+                {flow.updated_by && (
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>
+                    Editado por {flow.updated_by.split('@')[0]}
+                  </span>
+                )}
               </div>
 
               <div style={styles.cardActions}>

@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
+import { useToast } from '../contexts/ToastContext'
 import api from '../config/axios'
 
 function Playground({ flowId, onClose }) {
+  const toast = useToast()
   const { theme } = useTheme()
   const [sessions, setSessions] = useState([])
   const [selectedSession, setSelectedSession] = useState(null)
@@ -41,14 +43,14 @@ function Playground({ flowId, onClose }) {
       setTimeout(() => inputRef.current?.focus(), 100)
     } catch (error) {
       console.error('Error creating session:', error)
-      alert('Erro ao criar sessão: ' + (error.response?.data?.error || error.message))
+      toast.error('Erro ao criar sessão: ' + (error.response?.data?.error || error.message))
     }
   }
 
   // Deleta sessão atual
   const deleteCurrentSession = async () => {
     if (!selectedSession) return
-    if (!confirm(`Deseja deletar a sessão ${selectedSession}?`)) return
+    if (!window.confirm(`Deseja deletar a sessão ${selectedSession}?`)) return
 
     try {
       await api.delete(`/api/v1/flows/playground/session/${selectedSession}?flow_id=${flowId}`)
@@ -57,14 +59,14 @@ function Playground({ flowId, onClose }) {
       loadSessions()
     } catch (error) {
       console.error('Error deleting session:', error)
-      alert('Erro ao deletar sessão: ' + (error.response?.data?.error || error.message))
+      toast.error('Erro ao deletar sessão: ' + (error.response?.data?.error || error.message))
     }
   }
 
   // Envia mensagem
   const sendMessage = async (text = inputText, msisdn = selectedSession, buttonId = null) => {
     if (!msisdn) {
-      alert('Selecione ou crie uma sessão primeiro')
+      toast.warning('Selecione ou crie uma sessão primeiro')
       return
     }
 

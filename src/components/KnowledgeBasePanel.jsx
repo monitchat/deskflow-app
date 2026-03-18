@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import api from '../config/axios'
+import ApiKeyField from './ApiKeyField'
 
 const STATUS_COLORS = {
   ready: { bg: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', label: 'Pronto' },
@@ -30,6 +31,7 @@ function KnowledgeBasePanel({ flowId, onClose }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState(null)
   const [searching, setSearching] = useState(false)
+  const [saveStatus, setSaveStatus] = useState(null)
   const fileInputRef = useRef(null)
 
   // Form state
@@ -87,11 +89,12 @@ function KnowledgeBasePanel({ flowId, onClose }) {
         chunk_strategy: form.chunk_strategy,
         chunk_separator: form.chunk_separator,
         context_window: form.context_window,
+        api_key_ref: form.api_key,
       })
       if (res.data.success) {
         await loadBases()
         // Abre direto o detalhe da base criada
-        const newKb = { id: res.data.data.id, name: res.data.data.name, embedding_provider: form.embedding_provider, embedding_model: form.embedding_model }
+        const newKb = { id: res.data.data.id, name: res.data.data.name, embedding_provider: form.embedding_provider, embedding_model: form.embedding_model, api_key_ref: form.api_key }
         openBase(newKb)
         setForm((prev) => ({ ...prev, name: '', description: '' }))
       }
@@ -201,17 +204,35 @@ function KnowledgeBasePanel({ flowId, onClose }) {
     }
   }
 
-  const openBase = (kb) => {
+  const openBase = async (kb) => {
     setSelectedBase(kb)
     setForm((prev) => ({
       ...prev,
-      embedding_provider: kb.embedding_provider,
-      embedding_model: kb.embedding_model,
+      embedding_provider: kb.embedding_provider || prev.embedding_provider,
+      embedding_model: kb.embedding_model || prev.embedding_model,
+      api_key: kb.api_key_ref || '',
     }))
     loadDocuments(kb.id)
     setView('detail')
     setSearchResults(null)
     setSearchQuery('')
+
+    // Busca dados frescos da API
+    try {
+      const res = await api.get(`/api/v1/knowledge/bases/${flowId}`)
+      if (res.data.success) {
+        const fresh = res.data.data.find((b) => b.id === kb.id)
+        if (fresh) {
+          setSelectedBase(fresh)
+          setForm((prev) => ({
+            ...prev,
+            api_key: fresh.api_key_ref || prev.api_key,
+          }))
+        }
+      }
+    } catch (err) {
+      // usa dados que já tem
+    }
   }
 
   const providerModels = PROVIDERS.find(p => p.value === form.embedding_provider)?.models || []
@@ -422,6 +443,24 @@ function KnowledgeBasePanel({ flowId, onClose }) {
         (FAQ, catálogo com seções).
       </div>
 
+      <div style={{
+        padding: '0.75rem',
+        borderRadius: '8px',
+        border: '1px solid #334155',
+        backgroundColor: '#0f172a',
+      }}>
+        <label style={{ ...labelStyle, fontSize: '0.85rem', marginBottom: '0.4rem' }}>
+          API Key para Embeddings ({form.embedding_provider === 'gemini' ? 'Gemini' : 'OpenAI'})
+        </label>
+        <ApiKeyField
+          value={form.api_key}
+          onChange={(v) => setForm({ ...form, api_key: v })}
+          flowId={flowId}
+          provider={form.embedding_provider}
+        />
+        <small style={helpStyle}>Necessária para processar documentos e fazer buscas</small>
+      </div>
+
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
         <button onClick={() => setView('list')} style={btnSecondary}>Cancelar</button>
         <button
@@ -441,20 +480,19 @@ function KnowledgeBasePanel({ flowId, onClose }) {
       <div style={{
         padding: '0.75rem',
         borderRadius: '8px',
-        border: '1px solid var(--border, #334155)',
-        backgroundColor: 'var(--bg-secondary, #0f172a)',
+        border: '1px solid #334155',
+        backgroundColor: '#0f172a',
       }}>
-        <label style={{ ...labelStyle, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          🔑 API Key ({selectedBase?.embedding_provider === 'gemini' ? 'Gemini' : 'OpenAI'})
+        <label style={{ ...labelStyle, fontSize: '0.85rem', marginBottom: '0.4rem' }}>
+          API Key para Embeddings ({selectedBase?.embedding_provider === 'gemini' ? 'Gemini' : 'OpenAI'})
         </label>
-        <input
-          type="password"
+        <ApiKeyField
           value={form.api_key}
-          onChange={(e) => setForm({ ...form, api_key: e.target.value })}
-          placeholder={selectedBase?.embedding_provider === 'gemini' ? 'AIza...' : 'sk-proj-...'}
-          style={{ ...inputStyle, marginTop: '0.3rem' }}
+          onChange={(v) => setForm({ ...form, api_key: v })}
+          flowId={flowId}
+          provider={selectedBase?.embedding_provider}
         />
-        <small style={helpStyle}>Necessária para gerar embeddings dos documentos e buscar</small>
+        <small style={helpStyle}>Necessária para processar documentos e fazer buscas</small>
       </div>
 
       {/* Upload */}
@@ -660,6 +698,36 @@ function KnowledgeBasePanel({ flowId, onClose }) {
           )}
         </div>
       )}
+
+      {/* Botão Salvar */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid #334155' }}>
+        <button
+          onClick={async () => {
+            try {
+              setError(null)
+              const payload = { api_key_ref: form.api_key }
+              console.log('Saving KB:', selectedBase.id, payload)
+              const res = await api.put(`/api/v1/knowledge/bases/${selectedBase.id}`, payload)
+              console.log('Save response:', res.data)
+              if (res.data.success) {
+                // Atualiza o selectedBase local
+                setSelectedBase((prev) => ({ ...prev, api_key_ref: form.api_key }))
+                // Feedback
+                setSaveStatus('saved')
+                setTimeout(() => setSaveStatus(null), 2000)
+              } else {
+                setError(res.data.error || 'Erro ao salvar')
+              }
+            } catch (err) {
+              console.error('Save error:', err)
+              setError('Erro ao salvar')
+            }
+          }}
+          style={btnPrimary}
+        >
+          {saveStatus === 'saved' ? '✓ Salvo!' : 'Salvar'}
+        </button>
+      </div>
     </div>
   )
 

@@ -29,6 +29,7 @@ import ConfirmModal from '../components/ConfirmModal'
 import KnowledgeBasePanel from '../components/KnowledgeBasePanel'
 import ExecutionLogsPanel from '../components/ExecutionLogsPanel'
 import TutorialModal from '../components/TutorialModal'
+import { useToast as __useToast } from '../contexts/ToastContext'
 
 const nodeTypes = {
   start: CustomNode,
@@ -57,6 +58,7 @@ const getId = () => `node_${id++}`
 
 function FlowBuilderInner() {
   const { id: flowId } = useParams()
+  const toast = __useToast()
   const navigate = useNavigate()
   const { screenToFlowPosition } = useReactFlow()
 
@@ -147,11 +149,17 @@ function FlowBuilderInner() {
       if (event.key === 'Delete' || event.key === 'Backspace') {
         if (selectedNodeId) {
           event.preventDefault()
-          const confirmDelete = window.confirm('Deseja excluir este nó?')
-          if (confirmDelete) {
-            onDeleteNode(selectedNodeId)
-            setSelectedNodeId(null)
-          }
+          showConfirm({
+            title: 'Excluir nó',
+            message: 'Deseja excluir este nó e todas as suas conexões?',
+            confirmText: 'Excluir',
+            variant: 'destructive',
+          }).then((accepted) => {
+            if (accepted) {
+              onDeleteNode(selectedNodeId)
+              setSelectedNodeId(null)
+            }
+          })
         }
       }
 
@@ -219,12 +227,15 @@ function FlowBuilderInner() {
       }
     }
 
-    const handleDeleteNode = (event) => {
+    const handleDeleteNode = async (event) => {
       const { nodeId } = event.detail
-      console.log('DeleteNode event fired, nodeId:', nodeId)
-
-      const confirmDelete = window.confirm('Deseja excluir este nó?')
-      if (confirmDelete) {
+      const accepted = await showConfirm({
+        title: 'Excluir nó',
+        message: 'Deseja excluir este nó e todas as suas conexões?',
+        confirmText: 'Excluir',
+        variant: 'destructive',
+      })
+      if (accepted) {
         onDeleteNode(nodeId)
       }
     }
@@ -284,7 +295,7 @@ function FlowBuilderInner() {
       id = maxId + 1
     } catch (error) {
       console.error('Error loading flow:', error)
-      alert('Erro ao carregar fluxo')
+      toast.error('Erro ao carregar fluxo')
     }
   }
 
@@ -445,7 +456,7 @@ function FlowBuilderInner() {
       if (type === 'start') {
         const hasStart = nodes.some((n) => n.type === 'start')
         if (hasStart) {
-          alert('Já existe um nó de Início neste fluxo.')
+          toast.warning('Já existe um nó de Início neste fluxo.')
           return
         }
       }
@@ -660,7 +671,7 @@ function FlowBuilderInner() {
           data: flowData,
         })
         setLastSaved(new Date())
-        alert('Fluxo atualizado com sucesso!')
+        toast.success('Fluxo atualizado com sucesso!')
       } else {
         // Criar novo fluxo
         const companyId = localStorage.getItem('user_company_id')
@@ -671,12 +682,12 @@ function FlowBuilderInner() {
           is_active: false,
           company_id: companyId ? parseInt(companyId) : null,
         })
-        alert('Fluxo criado com sucesso!')
+        toast.success('Fluxo criado com sucesso!')
         navigate(`/flow/${response.data.data.id}`)
       }
     } catch (error) {
       console.error('Error saving flow:', error)
-      alert('Erro ao salvar fluxo')
+      toast.error('Erro ao salvar fluxo')
     }
   }
 
@@ -817,7 +828,7 @@ function FlowBuilderInner() {
       }
     } catch (error) {
       console.error('Error saving flow before playground:', error)
-      alert('Erro ao salvar fluxo. Salve manualmente antes de testar.')
+      toast.error('Erro ao salvar fluxo. Salve manualmente antes de testar.')
       return
     }
     setShowPlayground(true)
