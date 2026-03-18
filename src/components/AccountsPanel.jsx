@@ -75,8 +75,6 @@ function AccountsPanel({ flowId, onClose }) {
     }
 
     // Adicionando — checa conflito
-    const updated = [...selectedAccounts, accountNumber]
-
     try {
       const res = await api.post('/api/v1/flows/account-conflicts', {
         flow_id: parseInt(flowId),
@@ -85,29 +83,43 @@ function AccountsPanel({ flowId, onClose }) {
 
       if (res.data.success && res.data.data.conflicts.length > 0) {
         const conflict = res.data.data.conflicts[0]
-        const action = window.confirm(
-          `A conta "${accountNumber}" já está sendo usada pelo fluxo "${conflict.flow_name}".\n\n` +
-          `Se você adicionar essa conta aqui, ela será removida do fluxo "${conflict.flow_name}" ` +
-          `e ele não responderá mais nessa conta.\n\n` +
-          `Deseja continuar?`
-        )
 
-        if (!action) return
+        if (conflict.is_active) {
+          // Fluxo ativo — BLOQUEIA, só permite se remover do outro
+          const action = window.confirm(
+            `A conta "${accountNumber}" está em uso pelo fluxo ATIVO "${conflict.flow_name}".\n\n` +
+            `Não é possível usar a mesma conta em dois fluxos ativos.\n\n` +
+            `Deseja remover essa conta do fluxo "${conflict.flow_name}" para poder usá-la aqui?`
+          )
 
-        // Remove a conta do outro fluxo
-        await api.post('/api/v1/flows/remove-account', {
-          flow_id: conflict.flow_id,
-          account: accountNumber,
-        })
+          if (!action) return
 
-        // Remove o conflito da lista
-        setConflicts((prev) => prev.filter((c) => c.account !== accountNumber))
+          await api.post('/api/v1/flows/remove-account', {
+            flow_id: conflict.flow_id,
+            account: accountNumber,
+          })
+          setConflicts((prev) => prev.filter((c) => c.account !== accountNumber))
+        } else {
+          // Fluxo inativo — alerta mas deixa continuar
+          const wantRemove = window.confirm(
+            `A conta "${accountNumber}" também está no fluxo inativo "${conflict.flow_name}".\n\n` +
+            `Deseja removê-la de lá? (Se não remover, ambos terão a conta configurada)`
+          )
+
+          if (wantRemove) {
+            await api.post('/api/v1/flows/remove-account', {
+              flow_id: conflict.flow_id,
+              account: accountNumber,
+            })
+            setConflicts((prev) => prev.filter((c) => c.account !== accountNumber))
+          }
+        }
       }
     } catch (err) {
       console.error('Error checking/resolving conflict:', err)
     }
 
-    setSelectedAccounts(updated)
+    setSelectedAccounts((prev) => [...prev, accountNumber])
   }
 
   const selectAll = async () => {
@@ -121,21 +133,54 @@ function AccountsPanel({ flowId, onClose }) {
 
       if (res.data.success && res.data.data.conflicts.length > 0) {
         const conflictList = res.data.data.conflicts
-        const flowNames = [...new Set(conflictList.map((c) => c.flow_name))].join(', ')
-        const action = window.confirm(
-          `${conflictList.length} conta(s) já estão em uso por outros fluxos (${flowNames}).\n\n` +
-          `Se continuar, essas contas serão removidas dos outros fluxos.\n\n` +
-          `Deseja continuar?`
-        )
+        const activeConflicts = conflictList.filter((c) => c.is_active)
+        const inactiveConflicts = conflictList.filter((c) => !c.is_active)
 
-        if (!action) return
+        // Conflitos com fluxos ativos — obrigatório resolver
+        if (activeConflicts.length > 0) {
+          const lines = activeConflicts.map(
+            (c) => `  - "${c.account}" (fluxo ativo "${c.flow_name}")`
+          )
+          const action = window.confirm(
+            `As seguintes contas estão em fluxos ATIVOS:\n\n` +
+            lines.join('\n') +
+            `\n\nDeseja remover essas contas dos outros fluxos para poder usá-las aqui?`
+          )
 
-        // Remove todas as contas conflitantes dos outros fluxos
-        for (const conflict of conflictList) {
-          await api.post('/api/v1/flows/remove-account', {
-            flow_id: conflict.flow_id,
-            account: conflict.account,
-          })
+          if (!action) {
+            // Seleciona tudo exceto as contas de fluxos ativos que não resolveu
+            const blocked = new Set(activeConflicts.map((c) => c.account))
+            setSelectedAccounts(allAccounts.filter((a) => !blocked.has(a)))
+            return
+          }
+
+          for (const conflict of activeConflicts) {
+            await api.post('/api/v1/flows/remove-account', {
+              flow_id: conflict.flow_id,
+              account: conflict.account,
+            })
+          }
+        }
+
+        // Conflitos com fluxos inativos — alerta mas deixa continuar
+        if (inactiveConflicts.length > 0) {
+          const lines = inactiveConflicts.map(
+            (c) => `  - "${c.account}" (fluxo inativo "${c.flow_name}")`
+          )
+          const wantRemove = window.confirm(
+            `As seguintes contas estão em fluxos inativos:\n\n` +
+            lines.join('\n') +
+            `\n\nDeseja removê-las de lá?`
+          )
+
+          if (wantRemove) {
+            for (const conflict of inactiveConflicts) {
+              await api.post('/api/v1/flows/remove-account', {
+                flow_id: conflict.flow_id,
+                account: conflict.account,
+              })
+            }
+          }
         }
 
         setConflicts([])

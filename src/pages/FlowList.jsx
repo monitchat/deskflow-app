@@ -215,7 +215,45 @@ function FlowList() {
 
   const handleToggleActive = async (id, currentState) => {
     try {
-      await api.put(`/api/v1/flows/${id}`, { is_active: !currentState })
+      const isActivating = !currentState
+
+      if (isActivating) {
+        // Busca as contas do fluxo que está sendo ativado
+        const flow = flows.find((f) => f.id === id)
+        const accounts = flow?.allowed_accounts || []
+
+        if (accounts.length > 0) {
+          // Checa se alguma conta já está em uso por outro fluxo ativo
+          const res = await api.post('/api/v1/flows/account-conflicts', {
+            flow_id: id,
+            accounts,
+          })
+
+          if (res.data.success && res.data.data.conflicts.length > 0) {
+            const conflicts = res.data.data.conflicts
+            const lines = conflicts.map(
+              (c) => `  - "${c.account}" (usado por "${c.flow_name}")`
+            )
+            const action = window.confirm(
+              `As seguintes contas já estão em uso por outros fluxos ativos:\n\n` +
+              lines.join('\n') +
+              `\n\nDeseja remover essas contas dos outros fluxos e continuar ativando?`
+            )
+
+            if (!action) return
+
+            // Remove as contas conflitantes dos outros fluxos
+            for (const conflict of conflicts) {
+              await api.post('/api/v1/flows/remove-account', {
+                flow_id: conflict.flow_id,
+                account: conflict.account,
+              })
+            }
+          }
+        }
+      }
+
+      await api.put(`/api/v1/flows/${id}`, { is_active: isActivating })
       loadFlows()
     } catch (error) {
       console.error('Error toggling flow:', error)
