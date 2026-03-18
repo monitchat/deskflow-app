@@ -1,13 +1,33 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import api from '../config/axios'
+import ConfirmModal from './ConfirmModal'
 
 function AccountsPanel({ flowId, onClose }) {
   const [availableAccounts, setAvailableAccounts] = useState([])
   const [selectedAccounts, setSelectedAccounts] = useState([])
-  const [conflicts, setConflicts] = useState([]) // {account, flow_id, flow_name}
+  const [conflicts, setConflicts] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [modal, setModal] = useState(null)
+  const resolveRef = useRef(null)
+
+  const confirm = useCallback((config) => {
+    return new Promise((resolve) => {
+      resolveRef.current = resolve
+      setModal(config)
+    })
+  }, [])
+
+  const handleModalConfirm = () => {
+    setModal(null)
+    resolveRef.current?.(true)
+  }
+
+  const handleModalCancel = () => {
+    setModal(null)
+    resolveRef.current?.(false)
+  }
 
   useEffect(() => {
     loadData()
@@ -33,7 +53,6 @@ function AccountsPanel({ flowId, onClose }) {
         setSelectedAccounts(currentAccounts)
       }
 
-      // Checa conflitos para as contas já selecionadas
       if (currentAccounts.length > 0) {
         await checkConflicts(currentAccounts)
       }
@@ -67,14 +86,12 @@ function AccountsPanel({ flowId, onClose }) {
     const isSelected = selectedAccounts.includes(accountNumber)
 
     if (isSelected) {
-      // Removendo — sem problema
       const updated = selectedAccounts.filter((a) => a !== accountNumber)
       setSelectedAccounts(updated)
       setConflicts((prev) => prev.filter((c) => c.account !== accountNumber))
       return
     }
 
-    // Adicionando — checa conflito
     try {
       const res = await api.post('/api/v1/flows/account-conflicts', {
         flow_id: parseInt(flowId),
@@ -85,14 +102,16 @@ function AccountsPanel({ flowId, onClose }) {
         const conflict = res.data.data.conflicts[0]
 
         if (conflict.is_active) {
-          // Fluxo ativo — BLOQUEIA, só permite se remover do outro
-          const action = window.confirm(
-            `A conta "${accountNumber}" está em uso pelo fluxo ATIVO "${conflict.flow_name}".\n\n` +
-            `Não é possível usar a mesma conta em dois fluxos ativos.\n\n` +
-            `Deseja remover essa conta do fluxo "${conflict.flow_name}" para poder usá-la aqui?`
-          )
+          const accepted = await confirm({
+            title: 'Conta em uso por fluxo ativo',
+            message: `A conta "${accountNumber}" está sendo usada pelo fluxo ativo "${conflict.flow_name}". Não é possível usar a mesma conta em dois fluxos ativos. Para usar essa conta aqui, ela precisa ser removida do outro fluxo.`,
+            items: [`${accountNumber} → ${conflict.flow_name} (ativo)`],
+            confirmText: 'Remover e adicionar aqui',
+            cancelText: 'Cancelar',
+            variant: 'destructive',
+          })
 
-          if (!action) return
+          if (!accepted) return
 
           await api.post('/api/v1/flows/remove-account', {
             flow_id: conflict.flow_id,
@@ -100,11 +119,14 @@ function AccountsPanel({ flowId, onClose }) {
           })
           setConflicts((prev) => prev.filter((c) => c.account !== accountNumber))
         } else {
-          // Fluxo inativo — alerta mas deixa continuar
-          const wantRemove = window.confirm(
-            `A conta "${accountNumber}" também está no fluxo inativo "${conflict.flow_name}".\n\n` +
-            `Deseja removê-la de lá? (Se não remover, ambos terão a conta configurada)`
-          )
+          const wantRemove = await confirm({
+            title: 'Conta presente em outro fluxo',
+            message: `A conta "${accountNumber}" também está configurada no fluxo inativo "${conflict.flow_name}". Deseja removê-la de lá?`,
+            items: [`${accountNumber} → ${conflict.flow_name} (inativo)`],
+            confirmText: 'Remover de lá',
+            cancelText: 'Manter nos dois',
+            variant: 'warning',
+          })
 
           if (wantRemove) {
             await api.post('/api/v1/flows/remove-account', {
@@ -136,19 +158,17 @@ function AccountsPanel({ flowId, onClose }) {
         const activeConflicts = conflictList.filter((c) => c.is_active)
         const inactiveConflicts = conflictList.filter((c) => !c.is_active)
 
-        // Conflitos com fluxos ativos — obrigatório resolver
         if (activeConflicts.length > 0) {
-          const lines = activeConflicts.map(
-            (c) => `  - "${c.account}" (fluxo ativo "${c.flow_name}")`
-          )
-          const action = window.confirm(
-            `As seguintes contas estão em fluxos ATIVOS:\n\n` +
-            lines.join('\n') +
-            `\n\nDeseja remover essas contas dos outros fluxos para poder usá-las aqui?`
-          )
+          const accepted = await confirm({
+            title: 'Contas em uso por fluxos ativos',
+            message: 'As seguintes contas estão em fluxos ativos. Para usá-las aqui, elas serão removidas dos outros fluxos.',
+            items: activeConflicts.map((c) => `${c.account} → ${c.flow_name} (ativo)`),
+            confirmText: 'Remover e adicionar aqui',
+            cancelText: 'Cancelar',
+            variant: 'destructive',
+          })
 
-          if (!action) {
-            // Seleciona tudo exceto as contas de fluxos ativos que não resolveu
+          if (!accepted) {
             const blocked = new Set(activeConflicts.map((c) => c.account))
             setSelectedAccounts(allAccounts.filter((a) => !blocked.has(a)))
             return
@@ -162,16 +182,15 @@ function AccountsPanel({ flowId, onClose }) {
           }
         }
 
-        // Conflitos com fluxos inativos — alerta mas deixa continuar
         if (inactiveConflicts.length > 0) {
-          const lines = inactiveConflicts.map(
-            (c) => `  - "${c.account}" (fluxo inativo "${c.flow_name}")`
-          )
-          const wantRemove = window.confirm(
-            `As seguintes contas estão em fluxos inativos:\n\n` +
-            lines.join('\n') +
-            `\n\nDeseja removê-las de lá?`
-          )
+          const wantRemove = await confirm({
+            title: 'Contas em outros fluxos inativos',
+            message: 'As seguintes contas estão em fluxos inativos. Deseja removê-las de lá?',
+            items: inactiveConflicts.map((c) => `${c.account} → ${c.flow_name} (inativo)`),
+            confirmText: 'Remover de lá',
+            cancelText: 'Manter nos dois',
+            variant: 'warning',
+          })
 
           if (wantRemove) {
             for (const conflict of inactiveConflicts) {
@@ -430,17 +449,16 @@ function AccountsPanel({ flowId, onClose }) {
                             {account.account_number}
                           </div>
                         )}
-                        {/* Alerta de conflito */}
                         {conflict && !isSelected && (
                           <div style={{
                             fontSize: '0.72rem',
-                            color: '#D97706',
+                            color: conflict.is_active ? '#DC2626' : '#D97706',
                             marginTop: '0.2rem',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.25rem',
                           }}>
-                            <span>Em uso por: {conflict.flow_name}</span>
+                            <span>{conflict.is_active ? '● ' : '○ '}Em uso por: {conflict.flow_name}{conflict.is_active ? ' (ativo)' : ''}</span>
                           </div>
                         )}
                       </div>
@@ -519,6 +537,19 @@ function AccountsPanel({ flowId, onClose }) {
           </button>
         </div>
       </div>
+
+      {modal && (
+        <ConfirmModal
+          title={modal.title}
+          message={modal.message}
+          items={modal.items}
+          confirmText={modal.confirmText}
+          cancelText={modal.cancelText}
+          variant={modal.variant}
+          onConfirm={handleModalConfirm}
+          onCancel={handleModalCancel}
+        />
+      )}
     </div>
   )
 }

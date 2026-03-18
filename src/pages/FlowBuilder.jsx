@@ -25,6 +25,7 @@ import SecretsPanel from '../components/SecretsPanel'
 import AccountsPanel from '../components/AccountsPanel'
 import ApiKeysPanel from '../components/ApiKeysPanel'
 import UsersPanel from '../components/UsersPanel'
+import ConfirmModal from '../components/ConfirmModal'
 
 const nodeTypes = {
   start: CustomNode,
@@ -83,6 +84,15 @@ function FlowBuilderInner() {
   })
   const [sidebarVisible, setSidebarVisible] = useState(true)
   const connectingNodeId = useRef(null) // Armazena o ID do nó de origem durante drag
+  const [confirmModal, setConfirmModal] = useState(null)
+  const confirmResolveRef = useRef(null)
+
+  const showConfirm = useCallback((config) => {
+    return new Promise((resolve) => {
+      confirmResolveRef.current = resolve
+      setConfirmModal(config)
+    })
+  }, [])
 
   const START_NODE = {
     id: 'node_start',
@@ -706,26 +716,46 @@ function FlowBuilderInner() {
       const file = e.target.files[0]
       if (!file) return
       const reader = new FileReader()
-      reader.onload = (ev) => {
+      reader.onload = async (ev) => {
         try {
           const flowData = JSON.parse(ev.target.result)
           if (!flowData.nodes || !flowData.edges) {
-            alert('Arquivo inválido: não contém nodes ou edges')
+            await showConfirm({
+              title: 'Arquivo inválido',
+              message: 'O arquivo não contém nodes ou edges.',
+              confirmText: 'OK',
+              variant: 'destructive',
+            })
             return
           }
-          const secretsWarning = flowData.secrets?.length
-            ? `\n\nCredenciais necessárias (${flowData.secrets.length}):\n${flowData.secrets.map(s => '  - ' + s).join('\n')}\n\nVocê precisará configurá-las em "Credenciais" após importar.`
-            : ''
-          const confirmImport = window.confirm(
-            `Importar fluxo "${flowData.name || 'Sem nome'}"?\n\nIsso substituirá todo o fluxo atual.${secretsWarning}`
-          )
-          if (!confirmImport) return
+
+          const secretItems = flowData.secrets?.length
+            ? flowData.secrets.map((s) => s)
+            : []
+
+          const accepted = await showConfirm({
+            title: `Importar "${flowData.name || 'Sem nome'}"?`,
+            message: secretItems.length > 0
+              ? 'Isso substituirá todo o fluxo atual. O fluxo contém credenciais que precisarão ser configuradas em "Credenciais" após a importação.'
+              : 'Isso substituirá todo o fluxo atual.',
+            items: secretItems.length > 0 ? secretItems : undefined,
+            confirmText: 'Importar',
+            cancelText: 'Cancelar',
+            variant: secretItems.length > 0 ? 'warning' : undefined,
+          })
+
+          if (!accepted) return
           if (flowData.name) setFlowName(flowData.name)
           if (flowData.description) setFlowDescription(flowData.description)
           setNodes(flowData.nodes)
           setEdges(flowData.edges)
         } catch (err) {
-          alert('Erro ao ler arquivo: ' + err.message)
+          await showConfirm({
+            title: 'Erro ao ler arquivo',
+            message: err.message,
+            confirmText: 'OK',
+            variant: 'destructive',
+          })
         }
       }
       reader.readAsText(file)
@@ -1252,6 +1282,25 @@ function FlowBuilderInner() {
       {showUsers && (
         <UsersPanel
           onClose={() => setShowUsers(false)}
+        />
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          items={confirmModal.items}
+          confirmText={confirmModal.confirmText}
+          cancelText={confirmModal.cancelText}
+          variant={confirmModal.variant}
+          onConfirm={() => {
+            setConfirmModal(null)
+            confirmResolveRef.current?.(true)
+          }}
+          onCancel={() => {
+            setConfirmModal(null)
+            confirmResolveRef.current?.(false)
+          }}
         />
       )}
     </div>
