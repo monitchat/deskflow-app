@@ -556,6 +556,7 @@ function CustomNode({ data, type, selected, id }) {
           save_context: '💾',
           send_buttons: '🔘',
           send_list: '📋',
+          knowledge_search: '🧠',
           transfer_department: '👤',
           end_chat: '🏁',
           function: '⚡'
@@ -566,6 +567,7 @@ function CustomNode({ data, type, selected, id }) {
           save_context: 'Salvar Dados',
           send_buttons: 'Botões',
           send_list: 'Lista',
+          knowledge_search: 'RAG',
           transfer_department: 'Transferir',
           end_chat: 'Finalizar',
           function: 'Custom'

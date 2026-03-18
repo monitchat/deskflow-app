@@ -26,6 +26,7 @@ import AccountsPanel from '../components/AccountsPanel'
 import ApiKeysPanel from '../components/ApiKeysPanel'
 import UsersPanel from '../components/UsersPanel'
 import ConfirmModal from '../components/ConfirmModal'
+import KnowledgeBasePanel from '../components/KnowledgeBasePanel'
 import TutorialModal from '../components/TutorialModal'
 
 const nodeTypes = {
@@ -73,6 +74,7 @@ function FlowBuilderInner() {
   const [showAccounts, setShowAccounts] = useState(false)
   const [showApiKeys, setShowApiKeys] = useState(false)
   const [showUsers, setShowUsers] = useState(false)
+  const [showKnowledge, setShowKnowledge] = useState(false)
   const isAdmin = localStorage.getItem('user_is_admin') === 'true'
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState(null)
@@ -1007,6 +1009,14 @@ function FlowBuilderInner() {
                       </button>
                       <button
                         style={menuItemStyle}
+                        onClick={() => { setShowMenu(false); setShowKnowledge(true) }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <span>🧠 Base de Conhecimento</span>
+                      </button>
+                      <button
+                        style={menuItemStyle}
                         onClick={() => { setShowMenu(false); setShowUsers(true) }}
                         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -1239,6 +1249,7 @@ function FlowBuilderInner() {
           node={selectedNode}
           nodes={nodes}
           edges={edges}
+          flowId={flowId}
           onSave={(newData) => onNodeUpdate(selectedNode.id, newData)}
           onDelete={() => onDeleteNode(selectedNode.id)}
           onClose={() => {
@@ -1295,6 +1306,13 @@ function FlowBuilderInner() {
       {showUsers && (
         <UsersPanel
           onClose={() => setShowUsers(false)}
+        />
+      )}
+
+      {showKnowledge && (
+        <KnowledgeBasePanel
+          flowId={flowId}
+          onClose={() => setShowKnowledge(false)}
         />
       )}
 

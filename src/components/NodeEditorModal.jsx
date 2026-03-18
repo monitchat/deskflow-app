@@ -3,8 +3,9 @@ import api from '../config/axios'
 import ContextFieldsModal from './ContextFieldsModal'
 import AutocompleteTextarea from './AutocompleteTextarea'
 import FieldHelper from './FieldHelper'
+import KnowledgeBasePanel from './KnowledgeBasePanel'
 
-function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClose }) {
+function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClose, flowId }) {
   const [data, setData] = useState(node.data)
   const [showFieldsModal, setShowFieldsModal] = useState(false)
   const [expandedOption, setExpandedOption] = useState(null)
@@ -40,6 +41,12 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
   const [aiModels, setAiModels] = useState([])
   const [loadingAiModels, setLoadingAiModels] = useState(false)
   const [aiModelsError, setAiModelsError] = useState(null)
+
+  // Estados para bases de conhecimento (RAG)
+  const [knowledgeBases, setKnowledgeBases] = useState([])
+  const [loadingKnowledgeBases, setLoadingKnowledgeBases] = useState(false)
+  const [showKBPanel, setShowKBPanel] = useState(false) // abre o painel completo
+  const [kbPanelCallback, setKbPanelCallback] = useState(null) // callback ao fechar
 
   // Estados para colapsar seções do API Request
   const [queryParamsExpanded, setQueryParamsExpanded] = useState(false)
@@ -132,6 +139,54 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
   }
 
   // Busca status de tickets da API do MonitChat
+  const fetchKnowledgeBases = async () => {
+    if (!flowId) return
+    try {
+      setLoadingKnowledgeBases(true)
+      const res = await api.get(`/api/v1/knowledge/bases/${flowId}`)
+      if (res.data.success) {
+        setKnowledgeBases(res.data.data || [])
+      }
+    } catch (err) {
+      console.error('Error loading knowledge bases:', err)
+    } finally {
+      setLoadingKnowledgeBases(false)
+    }
+  }
+
+  const createQuickKB = async (name) => {
+    if (!flowId || !name.trim()) return null
+    try {
+      const res = await api.post('/api/v1/knowledge/bases', {
+        flow_id: parseInt(flowId),
+        name: name.trim(),
+        embedding_provider: 'openai',
+        embedding_model: 'text-embedding-3-small',
+        chunk_size: 512,
+        chunk_overlap: 50,
+        chunk_strategy: 'size',
+        context_window: 1,
+      })
+      if (res.data.success) {
+        await fetchKnowledgeBases()
+        return res.data.data.id
+      }
+    } catch (err) {
+      console.error('Error creating knowledge base:', err)
+    }
+    return null
+  }
+
+  const openKBPanel = (callback) => {
+    setKbPanelCallback(() => callback)
+    setShowKBPanel(true)
+  }
+
+  const closeKBPanel = () => {
+    setShowKBPanel(false)
+    fetchKnowledgeBases() // recarrega lista ao fechar
+  }
+
   const fetchTicketStatuses = async () => {
     setLoadingTicketStatuses(true)
     setTicketStatusesError(null)
@@ -283,9 +338,14 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
       fetchSessions()
     }
 
-    // Carrega departamentos se for transfer
-    if (node.type === 'transfer') {
+    // Carrega departamentos se for transfer ou ai_agent
+    if (node.type === 'transfer' || node.type === 'ai_agent') {
       fetchDepartments()
+    }
+
+    // Carrega bases de conhecimento se for ai_agent ou ai_tool
+    if ((node.type === 'ai_agent' || node.type === 'ai_tool') && flowId) {
+      fetchKnowledgeBases()
     }
 
     // Carrega status de tickets se for set_ticket_status
@@ -2637,6 +2697,7 @@ Regras:
                   { icon: '💾', label: 'Contexto', color: '#F59E0B', type: 'context_lookup', defaults: { name: `context_${Date.now()}`, type: 'context_lookup', description: 'Busca informações do contexto da conversa', parameters: { type: 'object', properties: { key: { type: 'string', description: 'A chave do contexto a buscar' } }, required: ['key'] } } },
                   { icon: '🔘', label: 'Botões', color: '#2196F3', type: 'send_buttons', defaults: { name: 'enviar_botoes', type: 'send_buttons', description: 'Envia botões clicáveis para simplificar a escolha do usuário. Use quando houver até 3 opções claras.' } },
                   { icon: '📋', label: 'Lista', color: '#009688', type: 'send_list', defaults: { name: 'enviar_lista', type: 'send_list', description: 'Envia uma lista de opções para o usuário selecionar. Use quando houver mais de 3 opções.' } },
+                  { icon: '🧠', label: 'RAG', color: '#8B5CF6', type: 'knowledge_search', defaults: { name: 'buscar_conhecimento', type: 'knowledge_search', description: 'Busca informações na base de conhecimento. Use para responder perguntas sobre produtos, políticas, procedimentos e qualquer informação documentada.', knowledge_base_id: null, top_k: 5, min_score: 0.3 } },
                   { icon: '👤', label: 'Transferir', color: '#7C3AED', type: 'transfer_department', defaults: { name: 'transferir_departamento', type: 'transfer_department', description: 'Transfere o atendimento para um departamento de atendimento humano.', departments: [] } },
                   { icon: '💾', label: 'Salvar', color: '#F59E0B', type: 'save_context', defaults: { name: 'salvar_dados', type: 'save_context', description: 'Salva informações do cliente extraídas da conversa (nome, CPF, endereço, preferências).' } },
                   { icon: '🏁', label: 'Finalizar', color: '#EF4444', type: 'end_chat', defaults: { name: 'finalizar_atendimento', type: 'end_chat', description: 'Finaliza o atendimento e encerra a conversa.' } },
@@ -2686,6 +2747,7 @@ Regras:
                   context_lookup: '💾 Contexto',
                   send_buttons: '🔘 Botões',
                   send_list: '📋 Lista',
+                  knowledge_search: '🧠 RAG',
                   transfer_department: '👤 Transferir',
                   save_context: '💾 Salvar Dados',
                   end_chat: '🏁 Finalizar',
@@ -2931,6 +2993,141 @@ Regras:
                           </div>
                         )}
 
+                        {tool.type === 'knowledge_search' && (() => {
+                          const selectedKbId = tool.knowledge_base_id
+                          const docs = kbDocs[selectedKbId] || []
+                          const STATUS_COLORS = {
+                            ready: { bg: 'rgba(34,197,94,0.15)', color: '#22c55e', label: 'Pronto' },
+                            processing: { bg: 'rgba(59,130,246,0.15)', color: '#3b82f6', label: 'Processando...' },
+                            pending: { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b', label: 'Pendente' },
+                            error: { bg: 'rgba(239,68,68,0.15)', color: '#ef4444', label: 'Erro' },
+                          }
+                          return (
+                          <div style={{ marginBottom: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            {/* Seletor de base */}
+                            <div>
+                              <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Base de Conhecimento</label>
+                              {loadingKnowledgeBases ? (
+                                <div style={{ padding: '0.4rem', fontSize: '0.8rem', color: '#888' }}>Carregando...</div>
+                              ) : (
+                                <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.2rem' }}>
+                                  <select
+                                    value={selectedKbId || ''}
+                                    onChange={(e) => {
+                                      const tools = [...(data.tools || [])]
+                                      const newId = e.target.value ? parseInt(e.target.value) : null
+                                      tools[index] = { ...tool, knowledge_base_id: newId }
+                                      updateData('tools', tools)
+                                      if (newId) loadKbDocs(newId)
+                                    }}
+                                    style={{ fontSize: '0.85rem', flex: 1, padding: '0.4rem' }}
+                                  >
+                                    <option value="">Selecione uma base...</option>
+                                    {knowledgeBases.map((kb) => (
+                                      <option key={kb.id} value={kb.id}>{kb.name} ({kb.chunk_count} chunks)</option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowCreateKB(`tool_${index}`)}
+                                    style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', backgroundColor: '#8B5CF6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                  >+ Nova</button>
+                                </div>
+                              )}
+                              {showCreateKB === `tool_${index}` && (
+                                <div style={{ marginTop: '0.35rem', padding: '0.4rem', borderRadius: '6px', border: '1px solid #8B5CF640', backgroundColor: '#8B5CF608', display: 'flex', gap: '0.3rem' }}>
+                                  <input type="text" value={newKBName} onChange={(e) => setNewKBName(e.target.value)} placeholder="Nome da base" style={{ flex: 1, fontSize: '0.82rem', padding: '0.3rem 0.5rem', borderRadius: '4px', border: '1px solid #555' }}
+                                    onKeyDown={async (e) => { if (e.key === 'Enter' && newKBName.trim()) { const id = await createQuickKB(newKBName); if (id) { const t = [...(data.tools || [])]; t[index] = { ...tool, knowledge_base_id: id }; updateData('tools', t); setNewKBName(''); setShowCreateKB(false); loadKbDocs(id) } } }}
+                                  />
+                                  <button type="button" onClick={async () => { if (newKBName.trim()) { const id = await createQuickKB(newKBName); if (id) { const t = [...(data.tools || [])]; t[index] = { ...tool, knowledge_base_id: id }; updateData('tools', t); setNewKBName(''); setShowCreateKB(false); loadKbDocs(id) } } }} style={{ padding: '0.3rem 0.5rem', fontSize: '0.78rem', backgroundColor: '#8B5CF6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Criar</button>
+                                  <button type="button" onClick={() => { setShowCreateKB(false); setNewKBName('') }} style={{ padding: '0.3rem', fontSize: '0.78rem', background: 'none', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', color: '#999' }}>✕</button>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Conteúdo da base selecionada */}
+                            {selectedKbId && (
+                              <>
+                                {/* API Key */}
+                                <div style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a' }}>
+                                  <label style={{ fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>🔑 API Key (embeddings)</label>
+                                  <input type="password" value={kbApiKey} onChange={(e) => setKbApiKey(e.target.value)} placeholder="sk-proj-..." style={{ fontSize: '0.82rem', width: '100%', padding: '0.3rem 0.5rem', marginTop: '0.2rem', borderRadius: '4px', border: '1px solid #334155', backgroundColor: '#1e293b', color: '#e2e8f0', boxSizing: 'border-box' }} />
+                                </div>
+
+                                {/* Upload */}
+                                <div
+                                  onClick={() => kbApiKey && !kbUploading && document.getElementById(`kb-file-${index}`)?.click()}
+                                  onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#8B5CF6' }}
+                                  onDragLeave={(e) => { e.currentTarget.style.borderColor = '#334155' }}
+                                  onDrop={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#334155'; if (kbApiKey && !kbUploading && e.dataTransfer.files[0]) handleKbUpload(selectedKbId, e.dataTransfer.files[0]) }}
+                                  style={{ padding: '0.75rem', borderRadius: '8px', border: `2px dashed ${kbApiKey ? '#334155' : '#ef444440'}`, textAlign: 'center', backgroundColor: '#0f172a', cursor: kbApiKey && !kbUploading ? 'pointer' : 'not-allowed', opacity: kbApiKey ? 1 : 0.5, transition: 'all 0.15s' }}
+                                >
+                                  <input id={`kb-file-${index}`} type="file" accept=".pdf,.txt,.csv,.md" onChange={(e) => { if (e.target.files[0]) handleKbUpload(selectedKbId, e.target.files[0]); e.target.value = '' }} style={{ display: 'none' }} />
+                                  {kbUploading ? (
+                                    <div style={{ fontSize: '0.78rem', color: '#3b82f6' }}>⏳ Processando...</div>
+                                  ) : (
+                                    <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                                      📄 {kbApiKey ? 'Clique ou arraste arquivo (PDF, TXT, CSV, MD)' : 'Informe a API Key primeiro'}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Adicionar texto */}
+                                {!kbShowText ? (
+                                  <button type="button" onClick={() => setKbShowText(true)} disabled={!kbApiKey} style={{ padding: '0.35rem', fontSize: '0.78rem', backgroundColor: 'transparent', color: '#8B5CF6', border: '1px solid #8B5CF640', borderRadius: '6px', cursor: kbApiKey ? 'pointer' : 'not-allowed', opacity: kbApiKey ? 1 : 0.5 }}>
+                                    ✏️ Adicionar texto manual
+                                  </button>
+                                ) : (
+                                  <div style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                    <input type="text" value={kbTextForm.name} onChange={(e) => setKbTextForm({ ...kbTextForm, name: e.target.value })} placeholder="Título (ex: FAQ, Política)" style={{ fontSize: '0.82rem', padding: '0.3rem 0.5rem', borderRadius: '4px', border: '1px solid #334155', backgroundColor: '#1e293b', color: '#e2e8f0' }} />
+                                    <textarea value={kbTextForm.text} onChange={(e) => setKbTextForm({ ...kbTextForm, text: e.target.value })} placeholder="Cole o texto aqui..." rows={4} style={{ fontSize: '0.82rem', padding: '0.3rem 0.5rem', borderRadius: '4px', border: '1px solid #334155', backgroundColor: '#1e293b', color: '#e2e8f0', resize: 'vertical' }} />
+                                    <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'flex-end' }}>
+                                      <button type="button" onClick={() => { setKbShowText(false); setKbTextForm({ name: '', text: '' }) }} style={{ padding: '0.3rem 0.5rem', fontSize: '0.75rem', background: 'none', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', color: '#999' }}>Cancelar</button>
+                                      <button type="button" onClick={() => handleKbAddText(selectedKbId)} disabled={!kbTextForm.text.trim() || kbUploading} style={{ padding: '0.3rem 0.5rem', fontSize: '0.75rem', backgroundColor: '#8B5CF6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', opacity: kbTextForm.text.trim() ? 1 : 0.5 }}>
+                                        {kbUploading ? '...' : 'Adicionar'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Lista de documentos */}
+                                {docs.length > 0 && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b' }}>DOCUMENTOS ({docs.length})</label>
+                                    {docs.map((doc) => {
+                                      const st = STATUS_COLORS[doc.status] || STATUS_COLORS.pending
+                                      return (
+                                        <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.4rem', borderRadius: '4px', border: '1px solid #1e293b', fontSize: '0.75rem' }}>
+                                          <span>{doc.source === 'manual' ? '✏️' : '📄'}</span>
+                                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#e2e8f0' }}>{doc.name}</span>
+                                          {doc.chunk_count > 0 && <span style={{ color: '#64748b', fontSize: '0.68rem' }}>{doc.chunk_count}ch</span>}
+                                          <span style={{ fontSize: '0.62rem', fontWeight: 600, padding: '0.1rem 0.3rem', borderRadius: '8px', backgroundColor: st.bg, color: st.color }}>{st.label}</span>
+                                          <button type="button" onClick={() => handleKbDeleteDoc(selectedKbId, doc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.4, fontSize: '0.75rem', padding: '0 0.15rem' }}>🗑️</button>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </>
+                            )}
+
+                            {/* Top K e Score */}
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                              <div>
+                                <label style={{ fontSize: '0.78rem', fontWeight: 'normal', display: 'block', marginBottom: '0.2rem' }}>Top K</label>
+                                <input type="number" value={tool.top_k || 5} onChange={(e) => { const t = [...(data.tools || [])]; t[index] = { ...tool, top_k: parseInt(e.target.value) || 5 }; updateData('tools', t) }} min={1} max={20} style={{ fontSize: '0.85rem', width: '70px', padding: '0.3rem' }} />
+                                <small style={{ color: '#666', fontSize: '0.68rem', display: 'block' }}>Máx. trechos</small>
+                              </div>
+                              <div>
+                                <label style={{ fontSize: '0.78rem', fontWeight: 'normal', display: 'block', marginBottom: '0.2rem' }}>Score Mín.</label>
+                                <input type="number" value={tool.min_score ?? 0.3} onChange={(e) => { const t = [...(data.tools || [])]; t[index] = { ...tool, min_score: parseFloat(e.target.value) || 0 }; updateData('tools', t) }} min={0} max={1} step={0.05} style={{ fontSize: '0.85rem', width: '70px', padding: '0.3rem' }} />
+                                <small style={{ color: '#666', fontSize: '0.68rem', display: 'block' }}>0-1 (0.3=30%)</small>
+                              </div>
+                            </div>
+                          </div>
+                          )
+                        })()}
+
                         {tool.type === 'function' && (
                           <>
                           <div style={{ marginBottom: '0.5rem' }}>
@@ -2981,7 +3178,7 @@ Regras:
                           </>
                         )}
 
-                        {!['transfer_department', 'save_context', 'end_chat', 'send_buttons', 'send_list'].includes(tool.type) && (
+                        {!['transfer_department', 'save_context', 'end_chat', 'send_buttons', 'send_list', 'knowledge_search'].includes(tool.type) && (
                         <div style={{ marginBottom: '0.5rem' }}>
                           <label style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>
                             Parâmetros (JSON Schema)
@@ -3109,6 +3306,7 @@ Regras:
                 <option value="save_context">💾 Salvar Dados na Conversa</option>
                 <option value="send_buttons">🔘 Enviar Botões</option>
                 <option value="send_list">📋 Enviar Lista</option>
+                <option value="knowledge_search">🧠 Base de Conhecimento (RAG)</option>
                 <option value="transfer_department">👤 Transferir Departamento</option>
                 <option value="end_chat">🏁 Finalizar Atendimento</option>
                 <option value="function">⚡ Custom Function</option>
@@ -3283,7 +3481,98 @@ Regras:
               </>
             )}
 
-            {!['transfer_department', 'save_context', 'end_chat', 'send_buttons', 'send_list'].includes(data.tool_type) && (
+            {(data.tool_type) === 'knowledge_search' && (() => {
+              const selectedKbId = data.knowledge_base_id
+              const docs = kbDocs[selectedKbId] || []
+              const ST = { ready: { bg: 'rgba(34,197,94,0.15)', color: '#22c55e', label: 'Pronto' }, processing: { bg: 'rgba(59,130,246,0.15)', color: '#3b82f6', label: 'Processando...' }, pending: { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b', label: 'Pendente' }, error: { bg: 'rgba(239,68,68,0.15)', color: '#ef4444', label: 'Erro' } }
+              return (
+              <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div>
+                  <label>Base de Conhecimento</label>
+                  {loadingKnowledgeBases ? (
+                    <div style={{ padding: '0.4rem', fontSize: '0.8rem', color: '#888' }}>Carregando...</div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                      <select value={selectedKbId || ''} onChange={(e) => { const v = e.target.value ? parseInt(e.target.value) : null; updateData('knowledge_base_id', v); if (v) loadKbDocs(v) }} style={{ fontSize: '0.9rem', flex: 1 }}>
+                        <option value="">Selecione uma base...</option>
+                        {knowledgeBases.map((kb) => (<option key={kb.id} value={kb.id}>{kb.name} ({kb.chunk_count} chunks)</option>))}
+                      </select>
+                      <button type="button" onClick={() => setShowCreateKB('standalone')} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', backgroundColor: '#8B5CF6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Nova</button>
+                    </div>
+                  )}
+                  {showCreateKB === 'standalone' && (
+                    <div style={{ marginTop: '0.35rem', padding: '0.4rem', borderRadius: '6px', border: '1px solid #8B5CF640', backgroundColor: '#8B5CF608', display: 'flex', gap: '0.3rem' }}>
+                      <input type="text" value={newKBName} onChange={(e) => setNewKBName(e.target.value)} placeholder="Nome da base" style={{ flex: 1, fontSize: '0.82rem', padding: '0.3rem 0.5rem', borderRadius: '4px', border: '1px solid #555' }}
+                        onKeyDown={async (e) => { if (e.key === 'Enter' && newKBName.trim()) { const id = await createQuickKB(newKBName); if (id) { updateData('knowledge_base_id', id); setNewKBName(''); setShowCreateKB(false); loadKbDocs(id) } } }}
+                      />
+                      <button type="button" onClick={async () => { if (newKBName.trim()) { const id = await createQuickKB(newKBName); if (id) { updateData('knowledge_base_id', id); setNewKBName(''); setShowCreateKB(false); loadKbDocs(id) } } }} style={{ padding: '0.3rem 0.5rem', fontSize: '0.78rem', backgroundColor: '#8B5CF6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Criar</button>
+                      <button type="button" onClick={() => { setShowCreateKB(false); setNewKBName('') }} style={{ padding: '0.3rem', fontSize: '0.78rem', background: 'none', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', color: '#999' }}>✕</button>
+                    </div>
+                  )}
+                </div>
+
+                {selectedKbId && (
+                  <>
+                    <div style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>🔑 API Key</label>
+                      <input type="password" value={kbApiKey} onChange={(e) => setKbApiKey(e.target.value)} placeholder="sk-proj-..." style={{ fontSize: '0.82rem', width: '100%', padding: '0.3rem 0.5rem', marginTop: '0.2rem', borderRadius: '4px', border: '1px solid #334155', backgroundColor: '#1e293b', color: '#e2e8f0', boxSizing: 'border-box' }} />
+                    </div>
+                    <div
+                      onClick={() => kbApiKey && !kbUploading && document.getElementById('kb-file-standalone')?.click()}
+                      onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#8B5CF6' }}
+                      onDragLeave={(e) => { e.currentTarget.style.borderColor = '#334155' }}
+                      onDrop={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#334155'; if (kbApiKey && !kbUploading && e.dataTransfer.files[0]) handleKbUpload(selectedKbId, e.dataTransfer.files[0]) }}
+                      style={{ padding: '0.75rem', borderRadius: '8px', border: `2px dashed ${kbApiKey ? '#334155' : '#ef444440'}`, textAlign: 'center', backgroundColor: '#0f172a', cursor: kbApiKey && !kbUploading ? 'pointer' : 'not-allowed', opacity: kbApiKey ? 1 : 0.5 }}
+                    >
+                      <input id="kb-file-standalone" type="file" accept=".pdf,.txt,.csv,.md" onChange={(e) => { if (e.target.files[0]) handleKbUpload(selectedKbId, e.target.files[0]); e.target.value = '' }} style={{ display: 'none' }} />
+                      <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                        {kbUploading ? '⏳ Processando...' : kbApiKey ? '📄 Clique ou arraste arquivo' : '🔑 Informe a API Key primeiro'}
+                      </div>
+                    </div>
+                    {!kbShowText ? (
+                      <button type="button" onClick={() => setKbShowText(true)} disabled={!kbApiKey} style={{ padding: '0.35rem', fontSize: '0.78rem', backgroundColor: 'transparent', color: '#8B5CF6', border: '1px solid #8B5CF640', borderRadius: '6px', cursor: kbApiKey ? 'pointer' : 'not-allowed', opacity: kbApiKey ? 1 : 0.5 }}>✏️ Texto manual</button>
+                    ) : (
+                      <div style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        <input type="text" value={kbTextForm.name} onChange={(e) => setKbTextForm({ ...kbTextForm, name: e.target.value })} placeholder="Título" style={{ fontSize: '0.82rem', padding: '0.3rem 0.5rem', borderRadius: '4px', border: '1px solid #334155', backgroundColor: '#1e293b', color: '#e2e8f0' }} />
+                        <textarea value={kbTextForm.text} onChange={(e) => setKbTextForm({ ...kbTextForm, text: e.target.value })} placeholder="Cole o texto..." rows={4} style={{ fontSize: '0.82rem', padding: '0.3rem 0.5rem', borderRadius: '4px', border: '1px solid #334155', backgroundColor: '#1e293b', color: '#e2e8f0', resize: 'vertical' }} />
+                        <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'flex-end' }}>
+                          <button type="button" onClick={() => { setKbShowText(false); setKbTextForm({ name: '', text: '' }) }} style={{ padding: '0.3rem 0.5rem', fontSize: '0.75rem', background: 'none', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', color: '#999' }}>Cancelar</button>
+                          <button type="button" onClick={() => handleKbAddText(selectedKbId)} disabled={!kbTextForm.text.trim() || kbUploading} style={{ padding: '0.3rem 0.5rem', fontSize: '0.75rem', backgroundColor: '#8B5CF6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', opacity: kbTextForm.text.trim() ? 1 : 0.5 }}>{kbUploading ? '...' : 'Adicionar'}</button>
+                        </div>
+                      </div>
+                    )}
+                    {docs.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b' }}>DOCUMENTOS ({docs.length})</label>
+                        {docs.map((doc) => { const st = ST[doc.status] || ST.pending; return (
+                          <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.4rem', borderRadius: '4px', border: '1px solid #1e293b', fontSize: '0.75rem' }}>
+                            <span>{doc.source === 'manual' ? '✏️' : '📄'}</span>
+                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#e2e8f0' }}>{doc.name}</span>
+                            {doc.chunk_count > 0 && <span style={{ color: '#64748b', fontSize: '0.68rem' }}>{doc.chunk_count}ch</span>}
+                            <span style={{ fontSize: '0.62rem', fontWeight: 600, padding: '0.1rem 0.3rem', borderRadius: '8px', backgroundColor: st.bg, color: st.color }}>{st.label}</span>
+                            <button type="button" onClick={() => handleKbDeleteDoc(selectedKbId, doc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.4, fontSize: '0.75rem' }}>🗑️</button>
+                          </div>
+                        )})}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '0.8rem', display: 'block', marginBottom: '0.2rem' }}>Top K</label>
+                    <input type="number" value={data.top_k || 5} onChange={(e) => updateData('top_k', parseInt(e.target.value) || 5)} min={1} max={20} style={{ fontSize: '0.85rem' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '0.8rem', display: 'block', marginBottom: '0.2rem' }}>Score Mín.</label>
+                    <input type="number" value={data.min_score ?? 0.3} onChange={(e) => updateData('min_score', parseFloat(e.target.value) || 0)} min={0} max={1} step={0.05} style={{ fontSize: '0.85rem' }} />
+                  </div>
+                </div>
+              </div>
+              )
+            })()}
+
+            {!['transfer_department', 'save_context', 'end_chat', 'send_buttons', 'send_list', 'knowledge_search'].includes(data.tool_type) && (
             <div className="form-group">
               <label>Parâmetros (JSON Schema)</label>
               <textarea
