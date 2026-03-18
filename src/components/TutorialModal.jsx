@@ -26,6 +26,27 @@ const slides = [
             </div>
           ))}
         </div>
+        <a
+          href="/docs"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            marginTop: '0.75rem',
+            padding: '0.6rem 0.75rem',
+            borderRadius: '8px',
+            backgroundColor: 'rgba(99, 102, 241, 0.08)',
+            border: '1px solid rgba(99, 102, 241, 0.2)',
+            color: '#6366f1',
+            fontSize: '0.82rem',
+            fontWeight: 500,
+            textDecoration: 'none',
+          }}
+        >
+          📖 Acesse tambem o Guia Completo com exemplos reais e cenarios do dia a dia
+        </a>
       </>
     ),
   },
@@ -457,6 +478,69 @@ const slides = [
             </div>
           ))}
         </div>
+      </>
+    ),
+  },
+  {
+    title: 'Documentacao Completa',
+    subtitle: 'Tudo em um so lugar, com exemplos reais',
+    icon: '📖',
+    content: (
+      <>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-dim, #6B7280)', lineHeight: 1.5, marginBottom: '1rem' }}>
+          Criamos um guia completo com todos os detalhes, exemplos de prompts, configuracoes de tools, cenarios reais do dia a dia e boas praticas.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem' }}>
+          {[
+            'Todos os componentes explicados em detalhe',
+            'Como escrever prompts eficazes para o Agente IA',
+            'JSON Schema de parametros com exemplos completos',
+            'Cenario: menu de atendimento basico',
+            'Cenario: consulta de pedido com validacao',
+            'Cenario: agente IA completo com 6 tools',
+            'Cenario: consulta encadeada (CEP → estoque)',
+            'Cenario: validacao de credito com Custom Function',
+            'Cenario: pesquisa de satisfacao',
+            'Dicas de seguranca e performance',
+          ].map((item, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              fontSize: '0.82rem', color: 'var(--text, #374151)',
+            }}>
+              <span style={{
+                width: '18px', height: '18px', borderRadius: '50%',
+                backgroundColor: 'rgba(34, 197, 94, 0.15)',
+                color: '#22c55e', fontSize: '0.7rem', fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>✓</span>
+              {item}
+            </div>
+          ))}
+        </div>
+
+        <a
+          href="/docs"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem',
+            padding: '0.75rem',
+            borderRadius: '10px',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            border: '1px solid rgba(99, 102, 241, 0.25)',
+            color: '#6366f1',
+            fontWeight: 600,
+            fontSize: '0.9rem',
+            textDecoration: 'none',
+            transition: 'all 0.15s',
+          }}
+        >
+          📖 Abrir Guia Completo
+        </a>
       </>
     ),
   },

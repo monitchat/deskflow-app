@@ -358,6 +358,11 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 placeholder="Digite a mensagem que será enviada"
                 rows={4}
               />
+              <FieldHelper
+                description="Texto enviado ao usuário. Use variáveis para personalizar: ${{nome}} insere o nome do contexto. Digite $ no campo para ver as variáveis disponíveis."
+                example={`Olá $\{{nome}}! 👋\nSeja bem-vindo à nossa loja. Como posso ajudar?`}
+                onUseExample={(ex) => updateData('message', ex)}
+              />
             </div>
             <div style={{ marginBottom: '1rem' }}>
               <button
@@ -421,9 +426,11 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 }
                 placeholder="Botão 1&#10;Botão 2&#10;Botão 3"
               />
-              <small style={{ color: '#666' }}>
-                Máximo 3 botões. Digite um botão por linha.
-              </small>
+              <FieldHelper
+                description="Máximo 3 botões (limitação do WhatsApp). Digite um texto por linha. O texto do botão que o usuário clicar será a resposta dele e pode ser avaliado pelo próximo nó (Router, Condição, etc)."
+                example={`Consultar pedido\nFalar com vendedor\nAssistência técnica`}
+                onUseExample={(ex) => updateData('buttons', ex.split('\n'))}
+              />
             </div>
           </>
         )
@@ -483,6 +490,23 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 placeholder='[{"title": "Seção", "rows": [{"id": "1", "title": "Opção 1"}]}]'
                 style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}
               />
+              <FieldHelper
+                title="Formato das opções da lista"
+                description="A lista do WhatsApp organiza opções em seções. Cada seção tem um título e uma lista de itens (rows) com id, title e description opcional."
+                example={JSON.stringify([{
+                  title: "Atendimento",
+                  rows: [
+                    { id: "1", title: "Consultar pedido", description: "Veja o status do seu pedido" },
+                    { id: "2", title: "2ª via de boleto", description: "Receba o boleto por aqui" },
+                    { id: "3", title: "Falar com vendedor", description: "Atendimento humano" }
+                  ]
+                }], null, 2)}
+                onUseExample={(ex) => {
+                  try {
+                    updateData('action', { ...data.action, sections: JSON.parse(ex) })
+                  } catch {}
+                }}
+              />
             </div>
           </>
         )
@@ -524,6 +548,11 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 placeholder="Mensagem exibida quando nenhuma opção for atendida"
                 rows={2}
               />
+              <FieldHelper
+                description="Exibida quando a resposta do usuário não combina com nenhuma opção. Ele pode tentar novamente. Se houver uma saída de 'erro' conectada, o fluxo segue por ela ao invés de mostrar esta mensagem."
+                example="Opção inválida! Por favor, escolha uma das opções disponíveis."
+                onUseExample={(ex) => updateData('error_message', ex)}
+              />
             </div>
 
             <div className="form-group">
@@ -533,6 +562,9 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 value={data.context_key || ''}
                 onChange={(e) => updateData('context_key', e.target.value)}
                 placeholder="Ex: menu_option"
+              />
+              <FieldHelper
+                description="Se preenchido, a resposta do usuário será salva nesta chave do contexto, podendo ser usada em nós seguintes com ${{chave}}."
               />
             </div>
 
@@ -1032,12 +1064,15 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
               <AutocompleteTextarea
                 value={data.url || ''}
                 onChange={(e) => updateData('url', e.target.value)}
-                placeholder="https://api.exemplo.com/endpoint ou use ${​{campo}} para valores dinâmicos"
+                placeholder="https://api.exemplo.com/endpoint"
                 rows={2}
               />
-              <small style={{ color: '#666', fontSize: '0.8rem' }}>
-                💡 Use $&#123;&#123;campo&#125;&#125; para inserir valores do contexto na URL
-              </small>
+              <FieldHelper
+                title="Como montar a URL"
+                description="Informe o endpoint completo da API. Use variáveis do contexto para valores dinâmicos e credenciais guardadas em secrets."
+                example={`https://$\{{secret.API_BASE}}/api/v1/clientes/$\{{cpf}}`}
+                onUseExample={(ex) => updateData('url', ex)}
+              />
             </div>
 
             <hr style={{ margin: '1rem 0', borderColor: '#ddd' }} />
@@ -1316,9 +1351,9 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 placeholder="Ex: api_response, user_data"
                 style={{ fontFamily: 'monospace' }}
               />
-              <small style={{ color: '#666', fontSize: '0.8rem' }}>
-                A resposta da API será salva nesta chave do contexto
-              </small>
+              <FieldHelper
+                description={`A resposta da API será salva nesta chave. Depois use $\{{${data.context_key || 'api_response'}.campo}} para acessar campos da resposta. Também ficam disponíveis: $\{{${data.context_key || 'api_response'}_status}} (código HTTP) e $\{{${data.context_key || 'api_response'}_success}} (true/false).`}
+              />
             </div>
 
             <div
@@ -1721,9 +1756,9 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 onChange={(e) => updateData('seconds', parseInt(e.target.value) || 1)}
                 placeholder="Ex: 5"
               />
-              <small style={{ color: '#666' }}>
-                Tempo em segundos para aguardar antes de continuar (máx: 300s)
-              </small>
+              <FieldHelper
+                description="Pausa a execução do fluxo pelo tempo definido (1 a 300 segundos). Útil para simular digitação, dar tempo ao usuário ler uma mensagem longa, ou aguardar um processamento."
+              />
             </div>
             <div className="form-group">
               <label>Rótulo (opcional)</label>
@@ -1804,6 +1839,11 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 onChange={(e) => updateData('message', e.target.value)}
                 placeholder="Mensagem enviada ao transferir com sucesso"
               />
+              <FieldHelper
+                description="Enviada quando a transferência for bem-sucedida. Aceita variáveis do contexto para personalizar."
+                example="Estamos transferindo seu atendimento para um especialista. Por favor, aguarde um momento."
+                onUseExample={(ex) => updateData('message', ex)}
+              />
             </div>
             <div className="form-group">
               <label>Mensagem de erro</label>
@@ -1812,9 +1852,11 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 onChange={(e) => updateData('error_message', e.target.value)}
                 placeholder="Mensagem enviada quando a transferência falhar"
               />
-              <small style={{ color: '#666', display: 'block', marginTop: '0.25rem' }}>
-                Se vazio, usa: "Não foi possível transferir o atendimento. Tente novamente mais tarde."
-              </small>
+              <FieldHelper
+                description="Enviada quando o departamento não está disponível ou ocorre um erro na transferência. Se vazio, usa uma mensagem padrão."
+                example="Desculpe, nosso departamento está indisponível no momento. Tente novamente em alguns minutos."
+                onUseExample={(ex) => updateData('error_message', ex)}
+              />
             </div>
             <div className="form-group">
               <label>Rótulo</label>
@@ -1981,7 +2023,12 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
               <textarea
                 value={data.message || ''}
                 onChange={(e) => updateData('message', e.target.value)}
-                placeholder="A Client agradece o seu contato!"
+                placeholder="Agradecemos o seu contato!"
+              />
+              <FieldHelper
+                description="Última mensagem enviada antes de encerrar a conversa. Após este nó, o contexto é resetado e a próxima mensagem do usuário reinicia o fluxo do início."
+                example="Obrigado pelo contato, ${{nome}}! Foi um prazer atendê-lo. Até a próxima! 😊"
+                onUseExample={(ex) => updateData('message', ex)}
               />
             </div>
             <div className="form-group">
@@ -2162,7 +2209,11 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
             <hr style={{ margin: '1rem 0', borderColor: '#ddd' }} />
 
             <div className="form-group">
-              <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <FieldHelper
+                title="O que são intenções?"
+                description="Cada intenção é um caminho possível. A IA analisa a mensagem do usuário e identifica qual intenção combina. Cada intenção vira uma saída do nó que você conecta ao próximo passo. Dê um nome claro e uma descrição detalhada — a IA usa a descrição para decidir."
+              />
+              <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
                 <span>🎯 Intenções (Saídas)</span>
                 <button
                   type="button"
@@ -2626,14 +2677,65 @@ Regras:
                     onClick={() => {
                       const tools = data.tools || []
                       updateData('tools', [...tools, {
-                        name: `function_${Date.now()}`,
+                        name: 'transferir_departamento',
+                        type: 'transfer_department',
+                        description: 'Transfere o atendimento para um departamento de atendimento humano. Use quando o usuário pedir para falar com um atendente ou quando o assunto requer atendimento humano.',
+                        departments: [],
+                      }])
+                    }}
+                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: '#7C3AED', color: '#fff', border: 'none', borderRadius: '4px' }}
+                    title="Adicionar Tool de Transferência"
+                  >
+                    👤 Transferir
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => {
+                      const tools = data.tools || []
+                      updateData('tools', [...tools, {
+                        name: 'salvar_dados',
+                        type: 'save_context',
+                        description: 'Salva informações do cliente extraídas da conversa (nome, CPF, endereço, preferências). Use sempre que o usuário informar dados pessoais ou relevantes.',
+                      }])
+                    }}
+                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: '#F59E0B', color: '#fff', border: 'none', borderRadius: '4px' }}
+                    title="Adicionar Tool de Salvar Contexto"
+                  >
+                    💾 Salvar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => {
+                      const tools = data.tools || []
+                      updateData('tools', [...tools, {
+                        name: 'finalizar_atendimento',
+                        type: 'end_chat',
+                        description: 'Finaliza o atendimento e encerra a conversa. Use quando o assunto foi completamente resolvido e o usuário não precisa de mais ajuda.',
+                      }])
+                    }}
+                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: '#EF4444', color: '#fff', border: 'none', borderRadius: '4px' }}
+                    title="Adicionar Tool de Finalizar"
+                  >
+                    🏁 Finalizar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => {
+                      const tools = data.tools || []
+                      updateData('tools', [...tools, {
+                        name: `custom_${Date.now()}`,
                         type: 'function',
-                        description: '',
+                        description: 'Descreva o que esta função faz para a IA saber quando usá-la.',
                         parameters: { type: 'object', properties: {}, required: [] },
+                        context_key: '',
+                        code: '# Escreva seu código aqui\n# args = argumentos da IA\n# context = dados da conversa\n# secrets = credenciais do fluxo\n\nresult = {"status": "ok"}',
                       }])
                     }}
                     style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: '#4CAF50', color: '#fff', border: 'none', borderRadius: '4px' }}
-                    title="Adicionar Tool Customizada"
+                    title="Adicionar Tool Customizada com código Python"
                   >
                     ⚡ Custom
                   </button>
@@ -2645,6 +2747,9 @@ Regras:
                 const toolTypeLabel = {
                   http_request: '🌐 HTTP Request',
                   context_lookup: '💾 Contexto',
+                  transfer_department: '👤 Transferir',
+                  save_context: '💾 Salvar Dados',
+                  end_chat: '🏁 Finalizar',
                   function: '⚡ Custom',
                 }
 
@@ -2826,6 +2931,118 @@ Regras:
                           </>
                         )}
 
+                        {tool.type === 'transfer_department' && (
+                          <div style={{ marginBottom: '0.5rem' }}>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>
+                              Departamentos Disponíveis
+                            </label>
+                            {loadingDepartments ? (
+                              <div style={{ padding: '0.5rem', color: '#666', fontSize: '0.8rem' }}>
+                                Carregando departamentos...
+                              </div>
+                            ) : departments.length > 0 ? (
+                              <>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.25rem' }}>
+                                  {departments.map((dept) => {
+                                    const isSelected = (tool.departments || []).some(d => d.id === dept.id)
+                                    return (
+                                      <label
+                                        key={dept.id}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '0.5rem',
+                                          padding: '0.4rem 0.5rem',
+                                          borderRadius: '6px',
+                                          border: `1px solid ${isSelected ? '#7C3AED40' : '#ddd'}`,
+                                          backgroundColor: isSelected ? '#7C3AED08' : 'transparent',
+                                          cursor: 'pointer',
+                                          fontSize: '0.82rem',
+                                        }}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={() => {
+                                            const tools = [...(data.tools || [])]
+                                            const current = tool.departments || []
+                                            const updated = isSelected
+                                              ? current.filter(d => d.id !== dept.id)
+                                              : [...current, { id: dept.id, name: dept.name }]
+                                            tools[index] = { ...tool, departments: updated }
+                                            updateData('tools', tools)
+                                          }}
+                                        />
+                                        <span>{dept.name}</span>
+                                        <span style={{ color: '#999', fontSize: '0.72rem' }}>ID: {dept.id}</span>
+                                      </label>
+                                    )
+                                  })}
+                                </div>
+                                <FieldHelper
+                                  title="Como funciona a transferência por IA"
+                                  description="Selecione os departamentos que a IA pode usar. Quando o usuário pedir para falar com alguém, a IA vai identificar o departamento mais adequado com base na conversa e transferir automaticamente. A IA também gera uma mensagem de despedida personalizada."
+                                />
+                              </>
+                            ) : (
+                              <div style={{ padding: '0.5rem', color: '#856404', backgroundColor: '#fff3cd', borderRadius: '4px', fontSize: '0.8rem' }}>
+                                Nenhum departamento encontrado. Verifique a conexão com o MonitChat.
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {tool.type === 'function' && (
+                          <>
+                          <div style={{ marginBottom: '0.5rem' }}>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>
+                              Salvar resultado em (Context Key)
+                            </label>
+                            <input
+                              type="text"
+                              value={tool.context_key || ''}
+                              onChange={(e) => {
+                                const tools = [...(data.tools || [])]
+                                tools[index] = { ...tool, context_key: e.target.value }
+                                updateData('tools', tools)
+                              }}
+                              placeholder={tool.name || 'custom_result'}
+                              style={{ fontSize: '0.85rem', fontFamily: 'monospace' }}
+                            />
+                            <FieldHelper
+                              description={`O resultado será salvo no contexto com esta chave. Se vazio, usa o nome da tool ("${tool.name || 'custom'}"). Depois acesse com $\{{${tool.context_key || tool.name || 'custom'}}}.`}
+                            />
+                          </div>
+                          <div style={{ marginBottom: '0.5rem' }}>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>
+                              Código Python
+                            </label>
+                            <textarea
+                              value={tool.code || ''}
+                              onChange={(e) => {
+                                const tools = [...(data.tools || [])]
+                                tools[index] = { ...tool, code: e.target.value }
+                                updateData('tools', tools)
+                              }}
+                              placeholder="# Escreva seu código aqui&#10;# Use 'args' para acessar os argumentos da IA&#10;# Use 'context' para dados da conversa&#10;# Use 'secrets' para credenciais&#10;# Defina 'result' com o retorno&#10;&#10;result = {'status': 'ok'}"
+                              rows={10}
+                              style={{ fontSize: '0.82rem', fontFamily: 'monospace', lineHeight: 1.5 }}
+                            />
+                            <FieldHelper
+                              title="Como escrever uma Custom Function"
+                              description="Escreva código Python que será executado quando a IA chamar esta tool. Você tem acesso a variáveis pré-definidas e deve definir 'result' com o retorno."
+                              example={`# Variáveis disponíveis:\n# args    → argumentos que a IA forneceu (dict)\n# context → dados da conversa (dict)\n# secrets → credenciais do fluxo (dict)\n# json    → módulo json do Python\n# re      → módulo de regex\n# math    → módulo math\n# datetime → módulo datetime\n\n# Exemplo: calcular parcelas\nvalor = float(args.get("valor", 0))\nparcelas = int(args.get("parcelas", 1))\ntaxa = 0.029  # 2.9% ao mês\n\nvalor_parcela = valor * (taxa * (1 + taxa) ** parcelas) / ((1 + taxa) ** parcelas - 1)\n\nresult = {\n    "valor_total": round(valor * (1 + taxa * parcelas), 2),\n    "valor_parcela": round(valor_parcela, 2),\n    "parcelas": parcelas\n}`}
+                              onUseExample={(ex) => {
+                                const tools = [...(data.tools || [])]
+                                tools[index] = { ...tool, code: ex }
+                                updateData('tools', tools)
+                              }}
+                            />
+                          </div>
+                          </>
+                        )}
+
+                        {!['transfer_department', 'save_context', 'end_chat'].includes(tool.type) && (
                         <div style={{ marginBottom: '0.5rem' }}>
                           <label style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>
                             Parâmetros (JSON Schema)
@@ -2878,6 +3095,7 @@ Regras:
                             }}
                           />
                         </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2949,6 +3167,9 @@ Regras:
               >
                 <option value="http_request">🌐 HTTP Request</option>
                 <option value="context_lookup">💾 Buscar Contexto</option>
+                <option value="save_context">💾 Salvar Dados na Conversa</option>
+                <option value="transfer_department">👤 Transferir Departamento</option>
+                <option value="end_chat">🏁 Finalizar Atendimento</option>
                 <option value="function">⚡ Custom Function</option>
               </select>
             </div>
@@ -3030,6 +3251,98 @@ Regras:
               </>
             )}
 
+            {(data.tool_type) === 'transfer_department' && (
+              <div className="form-group">
+                <label>Departamentos Disponíveis</label>
+                {loadingDepartments ? (
+                  <div style={{ padding: '0.5rem', color: '#666', fontSize: '0.8rem' }}>
+                    Carregando departamentos...
+                  </div>
+                ) : departments.length > 0 ? (
+                  <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      {departments.map((dept) => {
+                        const isSelected = (data.departments || []).some(d => d.id === dept.id)
+                        return (
+                          <label
+                            key={dept.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              padding: '0.4rem 0.5rem',
+                              borderRadius: '6px',
+                              border: `1px solid ${isSelected ? '#7C3AED40' : '#ddd'}`,
+                              backgroundColor: isSelected ? '#7C3AED08' : 'transparent',
+                              cursor: 'pointer',
+                              fontSize: '0.82rem',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {
+                                const current = data.departments || []
+                                const updated = isSelected
+                                  ? current.filter(d => d.id !== dept.id)
+                                  : [...current, { id: dept.id, name: dept.name }]
+                                updateData('departments', updated)
+                              }}
+                            />
+                            <span>{dept.name}</span>
+                            <span style={{ color: '#999', fontSize: '0.72rem' }}>ID: {dept.id}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                    <FieldHelper
+                      title="Como funciona a transferência por IA"
+                      description="Selecione os departamentos que a IA pode usar. Quando o usuário pedir para falar com alguém, a IA vai identificar o departamento mais adequado com base na conversa e transferir automaticamente."
+                    />
+                  </>
+                ) : (
+                  <div style={{ padding: '0.5rem', color: '#856404', backgroundColor: '#fff3cd', borderRadius: '4px', fontSize: '0.8rem' }}>
+                    Nenhum departamento encontrado.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(data.tool_type) === 'function' && (
+              <>
+              <div className="form-group">
+                <label>Salvar resultado em (Context Key)</label>
+                <input
+                  type="text"
+                  value={data.context_key || ''}
+                  onChange={(e) => updateData('context_key', e.target.value)}
+                  placeholder={data.name || 'custom_result'}
+                  style={{ fontFamily: 'monospace' }}
+                />
+                <FieldHelper
+                  description={`O resultado será salvo no contexto com esta chave. Se vazio, usa o nome da tool. Depois acesse com $\{{${data.context_key || data.name || 'custom'}}}.`}
+                />
+              </div>
+              <div className="form-group">
+                <label>Código Python</label>
+                <textarea
+                  value={data.code || ''}
+                  onChange={(e) => updateData('code', e.target.value)}
+                  placeholder="# Escreva seu código aqui&#10;# Defina 'result' com o retorno&#10;&#10;result = {'status': 'ok'}"
+                  rows={12}
+                  style={{ fontFamily: 'monospace', fontSize: '0.82rem', lineHeight: 1.5 }}
+                />
+                <FieldHelper
+                  title="Como escrever uma Custom Function"
+                  description="Escreva código Python que será executado quando a IA chamar esta tool. Você tem acesso a variáveis pré-definidas e deve definir 'result' com o retorno."
+                  example={`# Variáveis disponíveis:\n# args    → argumentos que a IA forneceu (dict)\n# context → dados da conversa (dict)\n# secrets → credenciais do fluxo (dict)\n# json    → módulo json do Python\n# re      → módulo de regex\n# math    → módulo math\n# datetime → módulo datetime\n\n# Exemplo: formatar endereço\nrua = args.get("rua", "")\nnumero = args.get("numero", "")\ncidade = args.get("cidade", "")\nuf = args.get("uf", "")\n\nendereco = f"{rua}, {numero} - {cidade}/{uf}"\n\nresult = {\n    "endereco_formatado": endereco,\n    "completo": bool(rua and numero and cidade and uf)\n}`}
+                  onUseExample={(ex) => updateData('code', ex)}
+                />
+              </div>
+              </>
+            )}
+
+            {!['transfer_department', 'save_context', 'end_chat'].includes(data.tool_type) && (
             <div className="form-group">
               <label>Parâmetros (JSON Schema)</label>
               <textarea
@@ -3072,6 +3385,7 @@ Regras:
                 }}
               />
             </div>
+            )}
 
             <div style={{
               padding: '0.75rem',
@@ -3144,9 +3458,9 @@ Regras:
                 onChange={(e) => updateData('context_key', e.target.value)}
                 placeholder="Ex: cpf, phone, email"
               />
-              <small style={{ color: '#666' }}>
-                Nome da variável onde o valor será salvo
-              </small>
+              <FieldHelper
+                description="O valor digitado pelo usuário será salvo nesta chave. Depois você pode usar ${{chave}} em outros nós. Ex: se a chave for 'cpf', use ${{cpf}} em mensagens ou URLs de API."
+              />
             </div>
             <div className="form-group">
               <label>Mensagem de erro (opcional)</label>
@@ -3160,6 +3474,11 @@ Regras:
                   })
                 }
                 placeholder="Mensagem quando a validação falhar"
+              />
+              <FieldHelper
+                description="Mensagem exibida quando o usuário digita algo inválido. Se vazio, usa uma mensagem padrão do tipo selecionado. O usuário pode tentar novamente."
+                example="CPF inválido! Por favor, digite os 11 números do seu CPF."
+                onUseExample={(ex) => updateData('validation', { ...data.validation, error_message: ex })}
               />
             </div>
             <div className="form-group">
@@ -3191,12 +3510,14 @@ Regras:
               <AutocompleteTextarea
                 value={data.url || ''}
                 onChange={(e) => updateData('url', e.target.value)}
-                placeholder="https://exemplo.com/arquivo.pdf ou ${{variavel}}"
+                placeholder="https://exemplo.com/arquivo.pdf"
                 rows={2}
               />
-              <small style={{ color: '#666' }}>
-                URL direta para o arquivo. Suporta variáveis do contexto.
-              </small>
+              <FieldHelper
+                description="URL pública e direta para o arquivo. Pode usar variáveis do contexto se a URL for dinâmica (ex: boleto gerado por API)."
+                example={`https://cdn.empresa.com/boletos/$\{{boleto_id}}.pdf`}
+                onUseExample={(ex) => updateData('url', ex)}
+              />
             </div>
             {data.media_type !== 'image' && (
               <div className="form-group">

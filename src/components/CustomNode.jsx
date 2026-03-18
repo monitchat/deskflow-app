@@ -553,11 +553,17 @@ function CustomNode({ data, type, selected, id }) {
         const toolTypeIcons = {
           http_request: '🌐',
           context_lookup: '💾',
+          save_context: '💾',
+          transfer_department: '👤',
+          end_chat: '🏁',
           function: '⚡'
         }
         const toolTypeLabels = {
           http_request: 'HTTP',
           context_lookup: 'Contexto',
+          save_context: 'Salvar Dados',
+          transfer_department: 'Transferir',
+          end_chat: 'Finalizar',
           function: 'Custom'
         }
         return (
