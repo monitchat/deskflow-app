@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import api from '../config/axios'
 import ContextFieldsModal from './ContextFieldsModal'
 import AutocompleteTextarea from './AutocompleteTextarea'
+import FieldHelper from './FieldHelper'
 
 function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClose }) {
   const [data, setData] = useState(node.data)
@@ -2093,6 +2094,12 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 placeholder="Você é um assistente que identifica intenções do usuário. Analise a mensagem e determine qual ação o usuário deseja realizar."
                 rows={4}
               />
+              <FieldHelper
+                title="Como escrever um bom prompt"
+                description="Explique o contexto do seu negócio e quais tipos de pedidos os clientes costumam fazer. Quanto mais contexto, melhor a classificação das intenções."
+                example={`Você é o assistente virtual da loja de móveis Casa Nova. Os clientes geralmente querem: consultar status de pedidos, verificar disponibilidade de produtos, solicitar assistência técnica ou falar com um vendedor. Classifique a intenção do cliente com base na mensagem.`}
+                onUseExample={(ex) => updateData('prompt', ex)}
+              />
               <small style={{ color: '#666' }}>
                 Este prompt guiará a IA na identificação das intenções
               </small>
@@ -2484,8 +2491,22 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
               <textarea
                 value={data.prompt || ''}
                 onChange={(e) => updateData('prompt', e.target.value)}
-                placeholder="Você é um assistente virtual da empresa X. Responda de forma educada e objetiva. Use as ferramentas disponíveis quando necessário para buscar informações."
+                placeholder="Você é um assistente virtual da empresa X. Responda de forma educada e objetiva."
                 rows={6}
+              />
+              <FieldHelper
+                title="Como escrever instruções eficazes"
+                description="O prompt define quem o agente é, como ele deve se comportar e quais limites tem. Use variáveis do contexto para personalizar. Quanto mais detalhado, melhor a qualidade das respostas."
+                example={`Você é o assistente virtual da loja Casa Nova Móveis.
+
+Regras:
+- Responda sempre em português, de forma educada e objetiva
+- Use as tools disponíveis para buscar dados antes de responder
+- Nunca invente informações — se não encontrar, diga que vai verificar
+- O nome do cliente é $\{{nome}} — use para personalizar
+- Se o cliente pedir algo fora do escopo, direcione para atendimento humano
+- Mantenha respostas curtas (máx 3 parágrafos)`}
+                onUseExample={(ex) => updateData('prompt', ex)}
               />
               <small style={{ color: '#666' }}>
                 Defina o comportamento, personalidade e regras do agente.
@@ -2696,9 +2717,9 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                             placeholder="Ex: buscar_produtos, consultar_pedido"
                             style={{ fontSize: '0.85rem', fontFamily: 'monospace' }}
                           />
-                          <small style={{ color: '#666', fontSize: '0.7rem' }}>
-                            Use snake_case sem espaços
-                          </small>
+                          <FieldHelper
+                            description="Use snake_case sem espaços ou caracteres especiais. Escolha um nome que descreva claramente a ação, como buscar_cliente, criar_pedido, verificar_estoque."
+                          />
                         </div>
 
                         <div style={{ marginBottom: '0.5rem' }}>
@@ -2713,6 +2734,16 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                             placeholder="Descreva o que esta tool faz. A IA usa isso para decidir quando chamá-la."
                             rows={2}
                             style={{ fontSize: '0.85rem' }}
+                          />
+                          <FieldHelper
+                            title="Por que a descrição é importante?"
+                            description="A IA lê a descrição para decidir QUANDO usar esta tool. Seja claro e específico. Diga exatamente o que a tool faz e em qual situação deve ser usada."
+                            example={`Busca dados de um cliente pelo CPF no sistema ERP. Use quando o usuário informar seu CPF ou pedir informações sobre sua conta, pedidos ou cadastro.`}
+                            onUseExample={(ex) => {
+                              const tools = [...(data.tools || [])]
+                              tools[index] = { ...tool, description: ex }
+                              updateData('tools', tools)
+                            }}
                           />
                         </div>
 
@@ -2750,9 +2781,11 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                                   placeholder="https://api.example.com/endpoint"
                                   style={{ fontSize: '0.85rem' }}
                                 />
-                                <small style={{ color: '#666', fontSize: '0.7rem' }}>
-                                  Use {'${{campo}}'} para variáveis do contexto
-                                </small>
+                                <FieldHelper
+                                  title="Variáveis na URL"
+                                  description={`Use \${{campo}} para valores do contexto e {param} para a IA preencher automaticamente. Parâmetros definidos no JSON Schema que não estão na URL vão como query string (GET) ou body (POST).`}
+                                  example="https://api.erp.com/clientes/{cpf}?incluir=${{flag}}"
+                                />
                               </div>
                             </div>
 
@@ -2773,6 +2806,22 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                                 rows={2}
                                 style={{ fontSize: '0.8rem', fontFamily: 'monospace' }}
                               />
+                              <FieldHelper
+                                description="Headers enviados na requisição HTTP. Use ${{secret.NOME}} para credenciais guardadas nas configurações do fluxo."
+                                example={JSON.stringify({
+                                  "Authorization": "Bearer ${{secret.API_KEY}}",
+                                  "Content-Type": "application/json"
+                                }, null, 2)}
+                                onUseExample={(ex) => {
+                                  const tools = [...(data.tools || [])]
+                                  try {
+                                    tools[index] = { ...tool, headers: JSON.parse(ex) }
+                                  } catch {
+                                    tools[index] = { ...tool, headers: ex }
+                                  }
+                                  updateData('tools', tools)
+                                }}
+                              />
                             </div>
                           </>
                         )}
@@ -2792,13 +2841,42 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                               }
                               updateData('tools', tools)
                             }}
-                            placeholder='{"type": "object", "properties": {"query": {"type": "string", "description": "Termo de busca"}}, "required": ["query"]}'
+                            placeholder='{"type": "object", "properties": {}, "required": []}'
                             rows={4}
                             style={{ fontSize: '0.8rem', fontFamily: 'monospace' }}
                           />
-                          <small style={{ color: '#666', fontSize: '0.7rem' }}>
-                            Define quais parâmetros a IA pode passar para esta tool
-                          </small>
+                          <FieldHelper
+                            title="Como definir parâmetros"
+                            description="Os parâmetros dizem à IA quais dados ela precisa extrair da conversa para executar esta tool. Use JSON Schema. O campo 'description' é o mais importante — a IA usa ele para entender o que preencher."
+                            example={JSON.stringify({
+                              type: "object",
+                              properties: {
+                                cpf: {
+                                  type: "string",
+                                  description: "CPF do cliente, somente números (11 dígitos)"
+                                },
+                                tipo_pessoa: {
+                                  type: "string",
+                                  enum: ["fisica", "juridica"],
+                                  description: "Tipo de pessoa: fisica ou juridica"
+                                },
+                                incluir_pedidos: {
+                                  type: "boolean",
+                                  description: "Se deve incluir pedidos na resposta"
+                                }
+                              },
+                              required: ["cpf"]
+                            }, null, 2)}
+                            onUseExample={(ex) => {
+                              const tools = [...(data.tools || [])]
+                              try {
+                                tools[index] = { ...tool, parameters: JSON.parse(ex) }
+                              } catch {
+                                tools[index] = { ...tool, parameters: ex }
+                              }
+                              updateData('tools', tools)
+                            }}
+                          />
                         </div>
                       </div>
                     )}
@@ -2858,9 +2936,9 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 placeholder="Ex: buscar_cep, consultar_pedido"
                 style={{ fontFamily: 'monospace' }}
               />
-              <small style={{ color: '#666' }}>
-                Use snake_case sem espaços. Este nome é usado pela IA para identificar a tool.
-              </small>
+              <FieldHelper
+                description="Use snake_case sem espaços ou caracteres especiais. Escolha um nome que descreva claramente a ação, como buscar_cliente, criar_pedido, verificar_estoque."
+              />
             </div>
 
             <div className="form-group">
@@ -2882,6 +2960,12 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 onChange={(e) => updateData('description', e.target.value)}
                 placeholder="Descreva o que esta tool faz. A IA usa isso para decidir quando chamá-la."
                 rows={3}
+              />
+              <FieldHelper
+                title="Por que a descrição é importante?"
+                description="A IA lê a descrição para decidir QUANDO usar esta tool. Seja claro e específico. Diga exatamente o que a tool faz e em qual situação deve ser usada."
+                example={`Busca dados de um cliente pelo CPF no sistema ERP. Use quando o usuário informar seu CPF ou pedir informações sobre sua conta, pedidos ou cadastro.`}
+                onUseExample={(ex) => updateData('description', ex)}
               />
             </div>
 
@@ -2909,9 +2993,11 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                       onChange={(e) => updateData('url', e.target.value)}
                       placeholder="https://api.example.com/endpoint/{param}"
                     />
-                    <small style={{ color: '#666' }}>
-                      Use {'`{param}`'} para valores que a IA vai preencher, {'`${{campo}}`'} para contexto/secrets
-                    </small>
+                    <FieldHelper
+                      title="Variáveis na URL"
+                      description={`Use \${{campo}} para valores do contexto e {param} para a IA preencher automaticamente. Parâmetros que não estão na URL vão como query string (GET) ou body (POST).`}
+                      example="https://api.erp.com/clientes/{cpf}?incluir=${{flag}}"
+                    />
                   </div>
                 </div>
 
@@ -2930,6 +3016,16 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                     rows={3}
                     style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}
                   />
+                  <FieldHelper
+                    description="Headers enviados na requisição HTTP. Use ${{secret.NOME}} para credenciais guardadas nas configurações do fluxo."
+                    example={JSON.stringify({
+                      "Authorization": "Bearer ${{secret.API_KEY}}",
+                      "Content-Type": "application/json"
+                    }, null, 2)}
+                    onUseExample={(ex) => {
+                      try { updateData('headers', JSON.parse(ex)) } catch { updateData('headers', ex) }
+                    }}
+                  />
                 </div>
               </>
             )}
@@ -2945,13 +3041,36 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                     updateData('parameters', e.target.value)
                   }
                 }}
-                placeholder='{"type": "object", "properties": {"cep": {"type": "string", "description": "CEP do usuário"}}, "required": ["cep"]}'
+                placeholder='{"type": "object", "properties": {}, "required": []}'
                 rows={5}
                 style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}
               />
-              <small style={{ color: '#666' }}>
-                Define quais parâmetros a IA pode passar para esta tool. Use JSON Schema.
-              </small>
+              <FieldHelper
+                title="Como definir parâmetros"
+                description="Os parâmetros dizem à IA quais dados ela precisa extrair da conversa para executar esta tool. Use JSON Schema. O campo 'description' é o mais importante — a IA usa ele para entender o que preencher."
+                example={JSON.stringify({
+                  type: "object",
+                  properties: {
+                    cpf: {
+                      type: "string",
+                      description: "CPF do cliente, somente números (11 dígitos)"
+                    },
+                    tipo_pessoa: {
+                      type: "string",
+                      enum: ["fisica", "juridica"],
+                      description: "Tipo de pessoa: fisica ou juridica"
+                    },
+                    incluir_pedidos: {
+                      type: "boolean",
+                      description: "Se deve incluir pedidos na resposta"
+                    }
+                  },
+                  required: ["cpf"]
+                }, null, 2)}
+                onUseExample={(ex) => {
+                  try { updateData('parameters', JSON.parse(ex)) } catch { updateData('parameters', ex) }
+                }}
+              />
             </div>
 
             <div style={{

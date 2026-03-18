@@ -26,6 +26,7 @@ import AccountsPanel from '../components/AccountsPanel'
 import ApiKeysPanel from '../components/ApiKeysPanel'
 import UsersPanel from '../components/UsersPanel'
 import ConfirmModal from '../components/ConfirmModal'
+import TutorialModal from '../components/TutorialModal'
 
 const nodeTypes = {
   start: CustomNode,
@@ -86,6 +87,10 @@ function FlowBuilderInner() {
   const connectingNodeId = useRef(null) // Armazena o ID do nó de origem durante drag
   const [confirmModal, setConfirmModal] = useState(null)
   const confirmResolveRef = useRef(null)
+  const [showTutorial, setShowTutorial] = useState(() => {
+    const seen = localStorage.getItem('deskflow-tutorial-seen')
+    return !seen
+  })
 
   const showConfirm = useCallback((config) => {
     return new Promise((resolve) => {
@@ -1029,6 +1034,14 @@ function FlowBuilderInner() {
                   )}
                   <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.3rem 0' }} />
                   <button
+                    style={menuItemStyle}
+                    onClick={() => { setShowMenu(false); setShowTutorial(true) }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <span>Tutorial</span>
+                  </button>
+                  <button
                     style={{ ...menuItemStyle, color: 'var(--text-dim)' }}
                     onClick={() => { setShowMenu(false); navigate('/') }}
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
@@ -1302,6 +1315,13 @@ function FlowBuilderInner() {
             confirmResolveRef.current?.(false)
           }}
         />
+      )}
+
+      {showTutorial && (
+        <TutorialModal onClose={() => {
+          setShowTutorial(false)
+          localStorage.setItem('deskflow-tutorial-seen', 'true')
+        }} />
       )}
     </div>
     </>
