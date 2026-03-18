@@ -554,6 +554,8 @@ function CustomNode({ data, type, selected, id }) {
           http_request: '🌐',
           context_lookup: '💾',
           save_context: '💾',
+          send_buttons: '🔘',
+          send_list: '📋',
           transfer_department: '👤',
           end_chat: '🏁',
           function: '⚡'
@@ -562,6 +564,8 @@ function CustomNode({ data, type, selected, id }) {
           http_request: 'HTTP',
           context_lookup: 'Contexto',
           save_context: 'Salvar Dados',
+          send_buttons: 'Botões',
+          send_list: 'Lista',
           transfer_department: 'Transferir',
           end_chat: 'Finalizar',
           function: 'Custom'
