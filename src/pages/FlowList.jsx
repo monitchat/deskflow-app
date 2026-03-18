@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../config/axios'
 import Header from '../components/Header'
 import AccountsPanel from '../components/AccountsPanel'
+import ConfirmModal from '../components/ConfirmModal'
 
 const styles = {
   page: {
@@ -177,9 +178,18 @@ function FlowList() {
   const [selectedFlowId, setSelectedFlowId] = useState(null)
   const [accountsFlowId, setAccountsFlowId] = useState(null)
   const [filterCompanyId, setFilterCompanyId] = useState('')
+  const [confirmModal, setConfirmModal] = useState(null)
+  const confirmResolveRef = useRef(null)
   const isMaster = localStorage.getItem('user_is_master') === 'true'
   const isAdmin = localStorage.getItem('user_is_admin') === 'true'
   const navigate = useNavigate()
+
+  const showConfirm = useCallback((config) => {
+    return new Promise((resolve) => {
+      confirmResolveRef.current = resolve
+      setConfirmModal(config)
+    })
+  }, [])
 
   useEffect(() => {
     loadFlows()
@@ -215,12 +225,121 @@ function FlowList() {
 
   const handleToggleActive = async (id, currentState) => {
     try {
-      await api.put(`/api/v1/flows/${id}`, { is_active: !currentState })
+      const isActivating = !currentState
+
+      if (isActivating) {
+        // Busca as contas do fluxo que está sendo ativado
+        const flow = flows.find((f) => f.id === id)
+        const accounts = flow?.allowed_accounts || []
+
+        if (accounts.length > 0) {
+          // Checa se alguma conta já está em uso por outro fluxo ativo
+          const res = await api.post('/api/v1/flows/account-conflicts', {
+            flow_id: id,
+            accounts,
+          })
+
+          if (res.data.success && res.data.data.conflicts.length > 0) {
+            const conflictList = res.data.data.conflicts
+            const activeConflicts = conflictList.filter((c) => c.is_active)
+
+            if (activeConflicts.length > 0) {
+              const accepted = await showConfirm({
+                title: 'Contas em uso por outros fluxos ativos',
+                message: 'As seguintes contas já estão em outros fluxos ativos. Para ativar este fluxo, elas serão removidas dos outros.',
+                items: activeConflicts.map((c) => `${c.account} → ${c.flow_name} (ativo)`),
+                confirmText: 'Remover e ativar',
+                cancelText: 'Cancelar',
+                variant: 'destructive',
+              })
+
+              if (!accepted) return
+
+              for (const conflict of activeConflicts) {
+                await api.post('/api/v1/flows/remove-account', {
+                  flow_id: conflict.flow_id,
+                  account: conflict.account,
+                })
+              }
+            }
+          }
+        }
+      }
+
+      await api.put(`/api/v1/flows/${id}`, { is_active: isActivating })
       loadFlows()
     } catch (error) {
       console.error('Error toggling flow:', error)
       alert('Erro ao ativar/desativar fluxo')
     }
+  }
+
+  const handleImport = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json'
+    input.onchange = (e) => {
+      const file = e.target.files[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = async (ev) => {
+        try {
+          const flowData = JSON.parse(ev.target.result)
+          if (!flowData.nodes || !flowData.edges) {
+            await showConfirm({
+              title: 'Arquivo inválido',
+              message: 'O arquivo não contém nodes ou edges.',
+              confirmText: 'OK',
+              variant: 'destructive',
+            })
+            return
+          }
+
+          const secretItems = flowData.secrets?.length
+            ? flowData.secrets.map((s) => s)
+            : []
+
+          const accepted = await showConfirm({
+            title: `Importar "${flowData.name || 'Sem nome'}"?`,
+            message: secretItems.length > 0
+              ? 'Será criado um novo fluxo. Ele contém credenciais que precisarão ser configuradas em "Credenciais" após a importação.'
+              : 'Será criado um novo fluxo com os dados do arquivo.',
+            items: secretItems.length > 0 ? secretItems : undefined,
+            confirmText: 'Importar',
+            cancelText: 'Cancelar',
+            variant: secretItems.length > 0 ? 'warning' : undefined,
+          })
+
+          if (!accepted) return
+
+          // Cria um novo fluxo via API
+          const response = await api.post('/api/v1/flows', {
+            name: flowData.name || 'Fluxo Importado',
+            description: flowData.description || '',
+            data: { nodes: flowData.nodes, edges: flowData.edges },
+            is_active: false,
+          })
+
+          if (response.data.success) {
+            loadFlows()
+            await showConfirm({
+              title: 'Fluxo importado',
+              message: `O fluxo "${flowData.name || 'Fluxo Importado'}" foi criado com sucesso.`,
+              confirmText: 'OK',
+            })
+          }
+        } catch (err) {
+          await showConfirm({
+            title: 'Erro ao importar',
+            message: err.message,
+            confirmText: 'OK',
+            variant: 'destructive',
+          })
+        }
+      }
+      reader.readAsText(file)
+    }
+    input.click()
   }
 
   if (loading) {
@@ -267,20 +386,46 @@ function FlowList() {
               </select>
             )}
             {isAdmin && (
-              <button
-                style={styles.newButton}
-                onClick={() => navigate('/flow/new')}
-                onMouseEnter={(e) => {
-                  e.target.style.transform = 'translateY(-1px)'
-                  e.target.style.boxShadow = '0 6px 20px rgba(99, 102, 241, 0.5)'
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.transform = 'translateY(0)'
-                  e.target.style.boxShadow = '0 4px 14px rgba(99, 102, 241, 0.35)'
-                }}
-              >
-                + Novo Fluxo
-              </button>
+              <>
+                <button
+                  onClick={handleImport}
+                  style={{
+                    padding: '0.6rem 1.2rem',
+                    border: '1px solid var(--border)',
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    backgroundColor: 'var(--bg-surface)',
+                    color: 'var(--text-muted)',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.borderColor = '#6366f1'
+                    e.target.style.color = '#6366f1'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.borderColor = 'var(--border)'
+                    e.target.style.color = 'var(--text-muted)'
+                  }}
+                >
+                  Importar
+                </button>
+                <button
+                  style={styles.newButton}
+                  onClick={() => navigate('/flow/new')}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'translateY(-1px)'
+                    e.target.style.boxShadow = '0 6px 20px rgba(99, 102, 241, 0.5)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'translateY(0)'
+                    e.target.style.boxShadow = '0 4px 14px rgba(99, 102, 241, 0.35)'
+                  }}
+                >
+                  + Novo Fluxo
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -406,15 +551,132 @@ function FlowList() {
           ))}
 
           {flows.length === 0 && (
-            <div style={styles.empty}>
-              <p style={styles.emptyTitle}>Nenhum fluxo criado ainda</p>
-              <p style={{ marginBottom: '1.5rem' }}>Comece criando seu primeiro fluxo de conversação</p>
-              <button
-                style={styles.newButton}
-                onClick={() => navigate('/flow/new')}
-              >
-                + Criar Primeiro Fluxo
-              </button>
+            <div style={{
+              gridColumn: '1 / -1',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              padding: '3rem 2rem',
+              textAlign: 'center',
+            }}>
+              {/* Hero visual */}
+              <div style={{
+                fontSize: '3.5rem',
+                marginBottom: '1.5rem',
+                lineHeight: 1,
+                filter: 'drop-shadow(0 0 20px rgba(99, 102, 241, 0.3))',
+              }}>
+                🧠
+              </div>
+
+              <h2 style={{
+                fontSize: '1.5rem',
+                fontWeight: 700,
+                color: 'var(--text-primary)',
+                marginBottom: '0.75rem',
+                background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}>
+                Crie fluxos inteligentes com IA
+              </h2>
+
+              <p style={{
+                fontSize: '0.95rem',
+                color: 'var(--text-dim)',
+                maxWidth: '520px',
+                lineHeight: 1.7,
+                marginBottom: '2rem',
+              }}>
+                Monte fluxos de atendimento com agentes de IA que entendem seus clientes,
+                classificam intenções automaticamente e respondem de forma natural.
+                Tudo visual, sem escrever uma linha de código.
+              </p>
+
+              {/* Feature cards */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '1rem',
+                maxWidth: '640px',
+                width: '100%',
+                marginBottom: '2.5rem',
+              }}>
+                {[
+                  { icon: '🤖', title: 'AI Router', desc: 'Classifica intenções com OpenAI ou Gemini' },
+                  { icon: '🧠', title: 'Agentes IA', desc: 'Conversação autônoma com tools conectáveis' },
+                  { icon: '🔧', title: 'Tools', desc: 'APIs, contexto e funções como ferramentas do agente' },
+                ].map((feat) => (
+                  <div
+                    key={feat.title}
+                    style={{
+                      padding: '1.25rem 1rem',
+                      borderRadius: '12px',
+                      backgroundColor: 'var(--bg-surface)',
+                      border: '1px solid var(--border)',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.4)'
+                      e.currentTarget.style.transform = 'translateY(-2px)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)'
+                      e.currentTarget.style.transform = 'translateY(0)'
+                    }}
+                  >
+                    <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{feat.icon}</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+                      {feat.title}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                      {feat.desc}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* CTA buttons */}
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  style={styles.newButton}
+                  onClick={() => navigate('/flow/new')}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'translateY(-1px)'
+                    e.target.style.boxShadow = '0 6px 20px rgba(99, 102, 241, 0.5)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'translateY(0)'
+                    e.target.style.boxShadow = '0 4px 14px rgba(99, 102, 241, 0.35)'
+                  }}
+                >
+                  + Criar Primeiro Fluxo
+                </button>
+                <button
+                  onClick={handleImport}
+                  style={{
+                    padding: '0.6rem 1.2rem',
+                    border: '1px solid var(--border)',
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    backgroundColor: 'var(--bg-surface)',
+                    color: 'var(--text-muted)',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.borderColor = '#6366f1'
+                    e.target.style.color = '#6366f1'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.borderColor = 'var(--border)'
+                    e.target.style.color = 'var(--text-muted)'
+                  }}
+                >
+                  Importar Fluxo
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -424,6 +686,25 @@ function FlowList() {
         <AccountsPanel
           flowId={accountsFlowId}
           onClose={() => setAccountsFlowId(null)}
+        />
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          items={confirmModal.items}
+          confirmText={confirmModal.confirmText}
+          cancelText={confirmModal.cancelText}
+          variant={confirmModal.variant}
+          onConfirm={() => {
+            setConfirmModal(null)
+            confirmResolveRef.current?.(true)
+          }}
+          onCancel={() => {
+            setConfirmModal(null)
+            confirmResolveRef.current?.(false)
+          }}
         />
       )}
     </div>

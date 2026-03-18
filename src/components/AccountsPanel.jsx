@@ -1,12 +1,33 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import api from '../config/axios'
+import ConfirmModal from './ConfirmModal'
 
 function AccountsPanel({ flowId, onClose }) {
   const [availableAccounts, setAvailableAccounts] = useState([])
   const [selectedAccounts, setSelectedAccounts] = useState([])
+  const [conflicts, setConflicts] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [modal, setModal] = useState(null)
+  const resolveRef = useRef(null)
+
+  const confirm = useCallback((config) => {
+    return new Promise((resolve) => {
+      resolveRef.current = resolve
+      setModal(config)
+    })
+  }, [])
+
+  const handleModalConfirm = () => {
+    setModal(null)
+    resolveRef.current?.(true)
+  }
+
+  const handleModalCancel = () => {
+    setModal(null)
+    resolveRef.current?.(false)
+  }
 
   useEffect(() => {
     loadData()
@@ -26,8 +47,14 @@ function AccountsPanel({ flowId, onClose }) {
         setAvailableAccounts(accountsRes.data.data || [])
       }
 
+      let currentAccounts = []
       if (flowRes.data.success) {
-        setSelectedAccounts(flowRes.data.data.allowed_accounts || [])
+        currentAccounts = flowRes.data.data.allowed_accounts || []
+        setSelectedAccounts(currentAccounts)
+      }
+
+      if (currentAccounts.length > 0) {
+        await checkConflicts(currentAccounts)
       }
     } catch (err) {
       console.error('Error loading accounts:', err)
@@ -37,21 +64,156 @@ function AccountsPanel({ flowId, onClose }) {
     }
   }
 
-  const toggleAccount = (accountNumber) => {
-    setSelectedAccounts((prev) => {
-      if (prev.includes(accountNumber)) {
-        return prev.filter((a) => a !== accountNumber)
+  const checkConflicts = async (accounts) => {
+    try {
+      const res = await api.post('/api/v1/flows/account-conflicts', {
+        flow_id: parseInt(flowId),
+        accounts,
+      })
+      if (res.data.success) {
+        setConflicts(res.data.data.conflicts || [])
       }
-      return [...prev, accountNumber]
-    })
+    } catch (err) {
+      console.error('Error checking conflicts:', err)
+    }
   }
 
-  const selectAll = () => {
-    setSelectedAccounts(availableAccounts.map((a) => a.account_number))
+  const getConflictForAccount = (accountNumber) => {
+    return conflicts.find((c) => c.account === accountNumber)
+  }
+
+  const toggleAccount = async (accountNumber) => {
+    const isSelected = selectedAccounts.includes(accountNumber)
+
+    if (isSelected) {
+      const updated = selectedAccounts.filter((a) => a !== accountNumber)
+      setSelectedAccounts(updated)
+      setConflicts((prev) => prev.filter((c) => c.account !== accountNumber))
+      return
+    }
+
+    try {
+      const res = await api.post('/api/v1/flows/account-conflicts', {
+        flow_id: parseInt(flowId),
+        accounts: [accountNumber],
+      })
+
+      if (res.data.success && res.data.data.conflicts.length > 0) {
+        const conflict = res.data.data.conflicts[0]
+
+        if (conflict.is_active) {
+          const accepted = await confirm({
+            title: 'Conta em uso por fluxo ativo',
+            message: `A conta "${accountNumber}" está sendo usada pelo fluxo ativo "${conflict.flow_name}". Não é possível usar a mesma conta em dois fluxos ativos. Para usar essa conta aqui, ela precisa ser removida do outro fluxo.`,
+            items: [`${accountNumber} → ${conflict.flow_name} (ativo)`],
+            confirmText: 'Remover e adicionar aqui',
+            cancelText: 'Cancelar',
+            variant: 'destructive',
+          })
+
+          if (!accepted) return
+
+          await api.post('/api/v1/flows/remove-account', {
+            flow_id: conflict.flow_id,
+            account: accountNumber,
+          })
+          setConflicts((prev) => prev.filter((c) => c.account !== accountNumber))
+        } else {
+          const wantRemove = await confirm({
+            title: 'Conta presente em outro fluxo',
+            message: `A conta "${accountNumber}" também está configurada no fluxo inativo "${conflict.flow_name}". Deseja removê-la de lá?`,
+            items: [`${accountNumber} → ${conflict.flow_name} (inativo)`],
+            confirmText: 'Remover de lá',
+            cancelText: 'Manter nos dois',
+            variant: 'warning',
+          })
+
+          if (wantRemove) {
+            await api.post('/api/v1/flows/remove-account', {
+              flow_id: conflict.flow_id,
+              account: accountNumber,
+            })
+            setConflicts((prev) => prev.filter((c) => c.account !== accountNumber))
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error checking/resolving conflict:', err)
+    }
+
+    setSelectedAccounts((prev) => [...prev, accountNumber])
+  }
+
+  const selectAll = async () => {
+    const allAccounts = availableAccounts.map((a) => a.account_number)
+
+    try {
+      const res = await api.post('/api/v1/flows/account-conflicts', {
+        flow_id: parseInt(flowId),
+        accounts: allAccounts,
+      })
+
+      if (res.data.success && res.data.data.conflicts.length > 0) {
+        const conflictList = res.data.data.conflicts
+        const activeConflicts = conflictList.filter((c) => c.is_active)
+        const inactiveConflicts = conflictList.filter((c) => !c.is_active)
+
+        if (activeConflicts.length > 0) {
+          const accepted = await confirm({
+            title: 'Contas em uso por fluxos ativos',
+            message: 'As seguintes contas estão em fluxos ativos. Para usá-las aqui, elas serão removidas dos outros fluxos.',
+            items: activeConflicts.map((c) => `${c.account} → ${c.flow_name} (ativo)`),
+            confirmText: 'Remover e adicionar aqui',
+            cancelText: 'Cancelar',
+            variant: 'destructive',
+          })
+
+          if (!accepted) {
+            const blocked = new Set(activeConflicts.map((c) => c.account))
+            setSelectedAccounts(allAccounts.filter((a) => !blocked.has(a)))
+            return
+          }
+
+          for (const conflict of activeConflicts) {
+            await api.post('/api/v1/flows/remove-account', {
+              flow_id: conflict.flow_id,
+              account: conflict.account,
+            })
+          }
+        }
+
+        if (inactiveConflicts.length > 0) {
+          const wantRemove = await confirm({
+            title: 'Contas em outros fluxos inativos',
+            message: 'As seguintes contas estão em fluxos inativos. Deseja removê-las de lá?',
+            items: inactiveConflicts.map((c) => `${c.account} → ${c.flow_name} (inativo)`),
+            confirmText: 'Remover de lá',
+            cancelText: 'Manter nos dois',
+            variant: 'warning',
+          })
+
+          if (wantRemove) {
+            for (const conflict of inactiveConflicts) {
+              await api.post('/api/v1/flows/remove-account', {
+                flow_id: conflict.flow_id,
+                account: conflict.account,
+              })
+            }
+          }
+        }
+
+        setConflicts([])
+      }
+    } catch (err) {
+      console.error('Error resolving conflicts:', err)
+    }
+
+    setSelectedAccounts(allAccounts)
   }
 
   const deselectAll = () => {
     setSelectedAccounts([])
+    setConflicts([])
   }
 
   const handleSave = async () => {
@@ -225,6 +387,7 @@ function AccountsPanel({ flowId, onClose }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {availableAccounts.map((account) => {
                   const isSelected = selectedAccounts.includes(account.account_number)
+                  const conflict = getConflictForAccount(account.account_number)
                   const colors = channelColors[account.channel] || channelColors.webchat
                   const icon = channelIcons[account.channel] || '📡'
 
@@ -284,6 +447,18 @@ function AccountsPanel({ flowId, onClose }) {
                             marginTop: '0.1rem',
                           }}>
                             {account.account_number}
+                          </div>
+                        )}
+                        {conflict && !isSelected && (
+                          <div style={{
+                            fontSize: '0.72rem',
+                            color: conflict.is_active ? '#DC2626' : '#D97706',
+                            marginTop: '0.2rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                          }}>
+                            <span>{conflict.is_active ? '● ' : '○ '}Em uso por: {conflict.flow_name}{conflict.is_active ? ' (ativo)' : ''}</span>
                           </div>
                         )}
                       </div>
@@ -362,6 +537,19 @@ function AccountsPanel({ flowId, onClose }) {
           </button>
         </div>
       </div>
+
+      {modal && (
+        <ConfirmModal
+          title={modal.title}
+          message={modal.message}
+          items={modal.items}
+          confirmText={modal.confirmText}
+          cancelText={modal.cancelText}
+          variant={modal.variant}
+          onConfirm={handleModalConfirm}
+          onCancel={handleModalCancel}
+        />
+      )}
     </div>
   )
 }

@@ -25,8 +25,10 @@ import SecretsPanel from '../components/SecretsPanel'
 import AccountsPanel from '../components/AccountsPanel'
 import ApiKeysPanel from '../components/ApiKeysPanel'
 import UsersPanel from '../components/UsersPanel'
+import ConfirmModal from '../components/ConfirmModal'
 
 const nodeTypes = {
+  start: CustomNode,
   message: CustomNode,
   button: CustomNode,
   list: CustomNode,
@@ -82,10 +84,30 @@ function FlowBuilderInner() {
   })
   const [sidebarVisible, setSidebarVisible] = useState(true)
   const connectingNodeId = useRef(null) // Armazena o ID do nó de origem durante drag
+  const [confirmModal, setConfirmModal] = useState(null)
+  const confirmResolveRef = useRef(null)
+
+  const showConfirm = useCallback((config) => {
+    return new Promise((resolve) => {
+      confirmResolveRef.current = resolve
+      setConfirmModal(config)
+    })
+  }, [])
+
+  const START_NODE = {
+    id: 'node_start',
+    type: 'start',
+    position: { x: 250, y: 50 },
+    data: { label: 'Início' },
+    deletable: false,
+  }
 
   useEffect(() => {
     if (flowId && flowId !== 'new') {
       loadFlow()
+    } else {
+      // Fluxo novo — já coloca o nó start no canvas
+      setNodes([START_NODE])
     }
   }, [flowId])
 
@@ -124,11 +146,11 @@ function FlowBuilderInner() {
         }
       }
 
-      // Ctrl+C - Copiar nó
+      // Ctrl+C - Copiar nó (exceto start)
       if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
         if (selectedNodeId) {
           const node = nodes.find(n => n.id === selectedNodeId)
-          if (node) {
+          if (node && node.type !== 'start') {
             setCopiedNode(node)
           }
         }
@@ -233,7 +255,11 @@ function FlowBuilderInner() {
       setFlowDescription(flow.description || '')
 
       if (flow.data.nodes) {
-        setNodes(flow.data.nodes)
+        const hasStart = flow.data.nodes.some((n) => n.type === 'start')
+        const loadedNodes = hasStart
+          ? flow.data.nodes
+          : [START_NODE, ...flow.data.nodes]
+        setNodes(loadedNodes)
       }
       if (flow.data.edges) {
         setEdges(applyEdgeStyles(flow.data.edges))
@@ -397,6 +423,15 @@ function FlowBuilderInner() {
         return
       }
 
+      // Bloqueia mais de um nó start por fluxo
+      if (type === 'start') {
+        const hasStart = nodes.some((n) => n.type === 'start')
+        if (hasStart) {
+          alert('Já existe um nó de Início neste fluxo.')
+          return
+        }
+      }
+
       // Converte coordenadas da tela para coordenadas do canvas do ReactFlow
       const position = screenToFlowPosition({
         x: event.clientX,
@@ -412,11 +447,12 @@ function FlowBuilderInner() {
 
       setNodes((nds) => nds.concat(newNode))
     },
-    [screenToFlowPosition, setNodes]
+    [screenToFlowPosition, setNodes, nodes]
   )
 
   const getDefaultNodeData = (type) => {
     const defaults = {
+      start: { label: 'Início' },
       message: { message: 'Nova mensagem' },
       button: { message: 'Escolha uma opção', buttons: ['Opção 1', 'Opção 2'] },
       list: {
@@ -528,6 +564,8 @@ function FlowBuilderInner() {
   }
 
   const onDeleteNode = (nodeId) => {
+    const node = nodes.find((n) => n.id === nodeId)
+    if (node && node.type === 'start') return
     setNodes((nds) => nds.filter((n) => n.id !== nodeId))
     setEdges((eds) =>
       eds.filter((e) => e.source !== nodeId && e.target !== nodeId)
@@ -678,26 +716,46 @@ function FlowBuilderInner() {
       const file = e.target.files[0]
       if (!file) return
       const reader = new FileReader()
-      reader.onload = (ev) => {
+      reader.onload = async (ev) => {
         try {
           const flowData = JSON.parse(ev.target.result)
           if (!flowData.nodes || !flowData.edges) {
-            alert('Arquivo inválido: não contém nodes ou edges')
+            await showConfirm({
+              title: 'Arquivo inválido',
+              message: 'O arquivo não contém nodes ou edges.',
+              confirmText: 'OK',
+              variant: 'destructive',
+            })
             return
           }
-          const secretsWarning = flowData.secrets?.length
-            ? `\n\nCredenciais necessárias (${flowData.secrets.length}):\n${flowData.secrets.map(s => '  - ' + s).join('\n')}\n\nVocê precisará configurá-las em "Credenciais" após importar.`
-            : ''
-          const confirmImport = window.confirm(
-            `Importar fluxo "${flowData.name || 'Sem nome'}"?\n\nIsso substituirá todo o fluxo atual.${secretsWarning}`
-          )
-          if (!confirmImport) return
+
+          const secretItems = flowData.secrets?.length
+            ? flowData.secrets.map((s) => s)
+            : []
+
+          const accepted = await showConfirm({
+            title: `Importar "${flowData.name || 'Sem nome'}"?`,
+            message: secretItems.length > 0
+              ? 'Isso substituirá todo o fluxo atual. O fluxo contém credenciais que precisarão ser configuradas em "Credenciais" após a importação.'
+              : 'Isso substituirá todo o fluxo atual.',
+            items: secretItems.length > 0 ? secretItems : undefined,
+            confirmText: 'Importar',
+            cancelText: 'Cancelar',
+            variant: secretItems.length > 0 ? 'warning' : undefined,
+          })
+
+          if (!accepted) return
           if (flowData.name) setFlowName(flowData.name)
           if (flowData.description) setFlowDescription(flowData.description)
           setNodes(flowData.nodes)
           setEdges(flowData.edges)
         } catch (err) {
-          alert('Erro ao ler arquivo: ' + err.message)
+          await showConfirm({
+            title: 'Erro ao ler arquivo',
+            message: err.message,
+            confirmText: 'OK',
+            variant: 'destructive',
+          })
         }
       }
       reader.readAsText(file)
@@ -1224,6 +1282,25 @@ function FlowBuilderInner() {
       {showUsers && (
         <UsersPanel
           onClose={() => setShowUsers(false)}
+        />
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          items={confirmModal.items}
+          confirmText={confirmModal.confirmText}
+          cancelText={confirmModal.cancelText}
+          variant={confirmModal.variant}
+          onConfirm={() => {
+            setConfirmModal(null)
+            confirmResolveRef.current?.(true)
+          }}
+          onCancel={() => {
+            setConfirmModal(null)
+            confirmResolveRef.current?.(false)
+          }}
         />
       )}
     </div>
