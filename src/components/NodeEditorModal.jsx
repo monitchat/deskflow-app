@@ -2652,6 +2652,29 @@ Regras:
             </div>
 
             <div className="form-group">
+              <label>Debounce (segundos)</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="number"
+                  value={data.debounce ?? 0}
+                  onChange={(e) => updateData('debounce', parseInt(e.target.value) || 0)}
+                  min="0"
+                  max="30"
+                  style={{ width: '80px' }}
+                />
+                <small style={{ color: '#666', flex: 1 }}>
+                  {data.debounce > 0
+                    ? `Aguarda ${data.debounce}s antes de processar (junta mensagens rápidas)`
+                    : 'Desativado — processa cada mensagem imediatamente'
+                  }
+                </small>
+              </div>
+              <FieldHelper
+                description="Quando o usuário manda várias mensagens seguidas (ex: 'oi' + 'quero ver meu pedido'), o debounce aguarda o tempo configurado antes de processar. Se chegar outra mensagem nesse intervalo, o timer reinicia e todas as mensagens são processadas juntas numa única chamada à IA. Valor 0 = desativado. Recomendado: 3-5 segundos."
+              />
+            </div>
+
+            <div className="form-group">
               <label>Mensagem de Erro</label>
               <textarea
                 value={data.error_message || ''}

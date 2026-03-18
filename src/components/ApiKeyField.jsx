@@ -5,10 +5,15 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
   const isVariable = value && (value.startsWith('${{secret.') || value.startsWith('${{env.'))
   const [mode, setMode] = useState(isVariable ? 'variable' : 'direct')
   const [secretKeys, setSecretKeys] = useState([])
+  const [variableKeys, setVariableKeys] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [selectedIndex, setSelectedIndex] = useState(-1)
 
   useEffect(() => {
-    if (flowId) loadSecretKeys()
+    if (flowId) {
+      loadSecretKeys()
+      loadVariableKeys()
+    }
   }, [flowId])
 
   const loadSecretKeys = async () => {
@@ -16,12 +21,21 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
       const res = await api.get(`/api/v1/flows/${flowId}/secrets`)
       if (res.data.success && res.data.data) {
         const data = res.data.data
-        // A API retorna {secrets: {...}, keys: [...]}
         if (data.keys && Array.isArray(data.keys)) {
           setSecretKeys(data.keys)
-        } else if (typeof data === 'object') {
-          setSecretKeys(Object.keys(data))
         }
+      }
+    } catch (err) {
+      // silently fail
+    }
+  }
+
+  const loadVariableKeys = async () => {
+    try {
+      const res = await api.get(`/api/v1/flows/${flowId}/variables`)
+      if (res.data.success && res.data.data) {
+        const vars = res.data.data.variables || {}
+        setVariableKeys(Object.keys(vars))
       }
     } catch (err) {
       // silently fail
@@ -32,22 +46,24 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
 
   const parseVariable = () => {
     if (!value) return { type: 'secret', name: '' }
-    const match = value.match(/\$\{\{(secret|env)\.(.+?)\}\}/)
-    if (match) return { type: match[1], name: match[2] }
+    // Match com ou sem nome após o ponto
+    const match = value.match(/\$\{\{(secret|env)\.(.*?)\}\}/)
+    if (match) return { type: match[1], name: match[2] || '' }
     return { type: 'secret', name: '' }
   }
 
   const { type: varType, name: varName } = parseVariable()
 
   const buildVariable = (type, name) => {
-    if (!name.trim()) return ''
+    if (!name || !name.trim()) return `\${{${type}.}}`
     return `\${{${type}.${name.trim()}}}`
   }
 
-  // Filtra sugestões baseado no que o usuário digitou
-  const suggestions = varType === 'secret'
-    ? secretKeys.filter(k => !varName || k.toLowerCase().includes(varName.toLowerCase()))
-    : []
+  // Filtra sugestões baseado no tipo e no que o usuário digitou
+  const availableKeys = varType === 'secret' ? secretKeys : variableKeys
+  const suggestions = availableKeys.filter(
+    k => !varName || k.toLowerCase().includes(varName.toLowerCase())
+  )
 
   return (
     <div>
@@ -110,10 +126,12 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
             <select
               value={varType}
               onChange={(e) => {
-                onChange(buildVariable(e.target.value, varName))
-                setShowSuggestions(false)
+                const newType = e.target.value
+                // Limpa o nome ao trocar de tipo
+                onChange(`\${{${newType}.}}`)
+                setShowSuggestions(true)
               }}
-              style={{ ...inputStyle, width: '130px', flex: 'none' }}
+              style={{ ...inputStyle, width: '130px', flex: 'none', position: 'relative', zIndex: 100 }}
             >
               <option value="secret">secret.</option>
               <option value="env">env.</option>
@@ -125,16 +143,37 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
                 onChange={(e) => {
                   onChange(buildVariable(varType, e.target.value))
                   setShowSuggestions(true)
+                  setSelectedIndex(-1)
                 }}
-                onFocus={() => setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
+                onFocus={() => { setShowSuggestions(true); setSelectedIndex(-1) }}
+                onBlur={() => setTimeout(() => { setShowSuggestions(false); setSelectedIndex(-1) }, 250)}
+                onKeyDown={(e) => {
+                  const items = varName ? suggestions : availableKeys
+                  if (!showSuggestions || items.length === 0) return
+
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault()
+                    setSelectedIndex((prev) => (prev + 1) % items.length)
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault()
+                    setSelectedIndex((prev) => (prev - 1 + items.length) % items.length)
+                  } else if (e.key === 'Enter' && selectedIndex >= 0) {
+                    e.preventDefault()
+                    onChange(buildVariable(varType, items[selectedIndex]))
+                    setShowSuggestions(false)
+                    setSelectedIndex(-1)
+                  } else if (e.key === 'Escape') {
+                    setShowSuggestions(false)
+                    setSelectedIndex(-1)
+                  }
+                }}
                 placeholder={varType === 'secret' ? 'OPENAI_KEY' : 'OPENAI_API_KEY'}
                 style={{ ...inputStyle, fontFamily: 'monospace' }}
                 autoFocus
               />
 
               {/* Autocomplete dropdown */}
-              {showSuggestions && varType === 'secret' && secretKeys.length > 0 && (
+              {showSuggestions && availableKeys.length > 0 && (
                 <div style={{
                   position: 'absolute',
                   top: '100%',
@@ -149,15 +188,17 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
                   maxHeight: '150px',
                   overflowY: 'auto',
                 }}>
-                  {(varName ? suggestions : secretKeys).map((key) => (
+                  {(varName ? suggestions : availableKeys).map((key, idx) => (
                     <button
                       key={key}
                       type="button"
                       onMouseDown={(e) => {
                         e.preventDefault()
-                        onChange(buildVariable('secret', key))
+                        onChange(buildVariable(varType, key))
                         setShowSuggestions(false)
+                        setSelectedIndex(-1)
                       }}
+                      onMouseEnter={() => setSelectedIndex(idx)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -165,7 +206,7 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
                         width: '100%',
                         padding: '0.4rem 0.6rem',
                         border: 'none',
-                        backgroundColor: 'transparent',
+                        backgroundColor: idx === selectedIndex ? '#334155' : 'transparent',
                         color: '#e2e8f0',
                         fontSize: '0.8rem',
                         fontFamily: 'monospace',
@@ -173,14 +214,12 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
                         textAlign: 'left',
                         borderBottom: '1px solid #0f172a',
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#334155' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
                     >
-                      <span style={{ color: '#8B5CF6', fontSize: '0.7rem' }}>secret.</span>
+                      <span style={{ color: varType === 'secret' ? '#8B5CF6' : '#06b6d4', fontSize: '0.7rem' }}>{varType}.</span>
                       <span>{key}</span>
                     </button>
                   ))}
-                  {varName && suggestions.length === 0 && secretKeys.length > 0 && !secretKeys.includes(varName) && (
+                  {varName && suggestions.length === 0 && availableKeys.length > 0 && !availableKeys.includes(varName) && (
                     <div style={{
                       padding: '0.4rem 0.6rem',
                       fontSize: '0.75rem',
@@ -189,7 +228,7 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
                       alignItems: 'center',
                       gap: '0.3rem',
                     }}>
-                      ⚠️ Secret "{varName}" não encontrado no fluxo
+                      ⚠️ "{varName}" não encontrado no fluxo
                     </div>
                   )}
                 </div>

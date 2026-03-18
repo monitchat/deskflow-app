@@ -43,7 +43,7 @@ function ExecutionLogsPanel({ flowId, onClose }) {
   }
 
   const handleClear = async () => {
-    if (!confirm('Limpar todos os logs deste fluxo?')) return
+    if (!window.confirm('Limpar todos os logs deste fluxo?')) return
     try {
       const params = msisdnFilter ? `?msisdn=${msisdnFilter}` : ''
       await api.delete(`/api/v1/logs/${flowId}${params}`)
