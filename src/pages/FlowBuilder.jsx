@@ -363,7 +363,7 @@ function FlowBuilderInner() {
   )
 
   const handleAddNodeFromConnection = useCallback(
-    (nodeType) => {
+    (nodeType, extraData) => {
       if (!connectionMenu) return
 
       // Converte coordenadas da tela para coordenadas do canvas
@@ -378,7 +378,7 @@ function FlowBuilderInner() {
         id: newNodeId,
         type: nodeType,
         position,
-        data: getDefaultNodeData(nodeType),
+        data: { ...getDefaultNodeData(nodeType), ...extraData },
       }
 
       // Adiciona o nó
@@ -1244,9 +1244,14 @@ function FlowBuilderInner() {
                     return [{ type: 'ai_agent', icon: '🧠', label: 'Agente IA' }]
                   }
 
-                  // Handle de tools (do ai_agent) → só ai_tool
+                  // Handle de tools (do ai_agent) → tipos de tool
                   if (handle === 'tools') {
-                    return [{ type: 'ai_tool', icon: '🔧', label: 'Tool (Agente)' }]
+                    return [
+                      { type: 'ai_tool', icon: '🔧', label: 'Tool HTTP', toolDefaults: { tool_type: 'http_request', name: '', method: 'GET', url: '' } },
+                      { type: 'ai_tool', icon: '🧠', label: 'Tool RAG', toolDefaults: { tool_type: 'knowledge_search', name: 'buscar_conhecimento', description: 'Busca informações na base de conhecimento.' } },
+                      { type: 'ai_tool', icon: '💾', label: 'Tool Contexto', toolDefaults: { tool_type: 'context_lookup', name: 'buscar_contexto', description: 'Busca dados do contexto da conversa.' } },
+                      { type: 'ai_tool', icon: '⚡', label: 'Tool Custom', toolDefaults: { tool_type: 'function', name: 'custom', description: '', code: '# args, context, secrets\n\nresult = {"status": "ok"}' } },
+                    ]
                   }
 
                   return [
@@ -1268,7 +1273,7 @@ function FlowBuilderInner() {
                 })().map((item) => (
                   <button
                     key={item.type}
-                    onClick={() => handleAddNodeFromConnection(item.type)}
+                    onClick={() => handleAddNodeFromConnection(item.type, item.toolDefaults)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
