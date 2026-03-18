@@ -4,6 +4,7 @@ import api from '../config/axios'
 function AccountsPanel({ flowId, onClose }) {
   const [availableAccounts, setAvailableAccounts] = useState([])
   const [selectedAccounts, setSelectedAccounts] = useState([])
+  const [conflicts, setConflicts] = useState([]) // {account, flow_id, flow_name}
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -26,8 +27,15 @@ function AccountsPanel({ flowId, onClose }) {
         setAvailableAccounts(accountsRes.data.data || [])
       }
 
+      let currentAccounts = []
       if (flowRes.data.success) {
-        setSelectedAccounts(flowRes.data.data.allowed_accounts || [])
+        currentAccounts = flowRes.data.data.allowed_accounts || []
+        setSelectedAccounts(currentAccounts)
+      }
+
+      // Checa conflitos para as contas já selecionadas
+      if (currentAccounts.length > 0) {
+        await checkConflicts(currentAccounts)
       }
     } catch (err) {
       console.error('Error loading accounts:', err)
@@ -37,21 +45,111 @@ function AccountsPanel({ flowId, onClose }) {
     }
   }
 
-  const toggleAccount = (accountNumber) => {
-    setSelectedAccounts((prev) => {
-      if (prev.includes(accountNumber)) {
-        return prev.filter((a) => a !== accountNumber)
+  const checkConflicts = async (accounts) => {
+    try {
+      const res = await api.post('/api/v1/flows/account-conflicts', {
+        flow_id: parseInt(flowId),
+        accounts,
+      })
+      if (res.data.success) {
+        setConflicts(res.data.data.conflicts || [])
       }
-      return [...prev, accountNumber]
-    })
+    } catch (err) {
+      console.error('Error checking conflicts:', err)
+    }
   }
 
-  const selectAll = () => {
-    setSelectedAccounts(availableAccounts.map((a) => a.account_number))
+  const getConflictForAccount = (accountNumber) => {
+    return conflicts.find((c) => c.account === accountNumber)
+  }
+
+  const toggleAccount = async (accountNumber) => {
+    const isSelected = selectedAccounts.includes(accountNumber)
+
+    if (isSelected) {
+      // Removendo — sem problema
+      const updated = selectedAccounts.filter((a) => a !== accountNumber)
+      setSelectedAccounts(updated)
+      setConflicts((prev) => prev.filter((c) => c.account !== accountNumber))
+      return
+    }
+
+    // Adicionando — checa conflito
+    const updated = [...selectedAccounts, accountNumber]
+
+    try {
+      const res = await api.post('/api/v1/flows/account-conflicts', {
+        flow_id: parseInt(flowId),
+        accounts: [accountNumber],
+      })
+
+      if (res.data.success && res.data.data.conflicts.length > 0) {
+        const conflict = res.data.data.conflicts[0]
+        const action = window.confirm(
+          `A conta "${accountNumber}" já está sendo usada pelo fluxo "${conflict.flow_name}".\n\n` +
+          `Se você adicionar essa conta aqui, ela será removida do fluxo "${conflict.flow_name}" ` +
+          `e ele não responderá mais nessa conta.\n\n` +
+          `Deseja continuar?`
+        )
+
+        if (!action) return
+
+        // Remove a conta do outro fluxo
+        await api.post('/api/v1/flows/remove-account', {
+          flow_id: conflict.flow_id,
+          account: accountNumber,
+        })
+
+        // Remove o conflito da lista
+        setConflicts((prev) => prev.filter((c) => c.account !== accountNumber))
+      }
+    } catch (err) {
+      console.error('Error checking/resolving conflict:', err)
+    }
+
+    setSelectedAccounts(updated)
+  }
+
+  const selectAll = async () => {
+    const allAccounts = availableAccounts.map((a) => a.account_number)
+
+    try {
+      const res = await api.post('/api/v1/flows/account-conflicts', {
+        flow_id: parseInt(flowId),
+        accounts: allAccounts,
+      })
+
+      if (res.data.success && res.data.data.conflicts.length > 0) {
+        const conflictList = res.data.data.conflicts
+        const flowNames = [...new Set(conflictList.map((c) => c.flow_name))].join(', ')
+        const action = window.confirm(
+          `${conflictList.length} conta(s) já estão em uso por outros fluxos (${flowNames}).\n\n` +
+          `Se continuar, essas contas serão removidas dos outros fluxos.\n\n` +
+          `Deseja continuar?`
+        )
+
+        if (!action) return
+
+        // Remove todas as contas conflitantes dos outros fluxos
+        for (const conflict of conflictList) {
+          await api.post('/api/v1/flows/remove-account', {
+            flow_id: conflict.flow_id,
+            account: conflict.account,
+          })
+        }
+
+        setConflicts([])
+      }
+    } catch (err) {
+      console.error('Error resolving conflicts:', err)
+    }
+
+    setSelectedAccounts(allAccounts)
   }
 
   const deselectAll = () => {
     setSelectedAccounts([])
+    setConflicts([])
   }
 
   const handleSave = async () => {
@@ -225,6 +323,7 @@ function AccountsPanel({ flowId, onClose }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {availableAccounts.map((account) => {
                   const isSelected = selectedAccounts.includes(account.account_number)
+                  const conflict = getConflictForAccount(account.account_number)
                   const colors = channelColors[account.channel] || channelColors.webchat
                   const icon = channelIcons[account.channel] || '📡'
 
@@ -284,6 +383,19 @@ function AccountsPanel({ flowId, onClose }) {
                             marginTop: '0.1rem',
                           }}>
                             {account.account_number}
+                          </div>
+                        )}
+                        {/* Alerta de conflito */}
+                        {conflict && !isSelected && (
+                          <div style={{
+                            fontSize: '0.72rem',
+                            color: '#D97706',
+                            marginTop: '0.2rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                          }}>
+                            <span>Em uso por: {conflict.flow_name}</span>
                           </div>
                         )}
                       </div>

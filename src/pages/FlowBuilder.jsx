@@ -27,6 +27,7 @@ import ApiKeysPanel from '../components/ApiKeysPanel'
 import UsersPanel from '../components/UsersPanel'
 
 const nodeTypes = {
+  start: CustomNode,
   message: CustomNode,
   button: CustomNode,
   list: CustomNode,
@@ -83,9 +84,20 @@ function FlowBuilderInner() {
   const [sidebarVisible, setSidebarVisible] = useState(true)
   const connectingNodeId = useRef(null) // Armazena o ID do nó de origem durante drag
 
+  const START_NODE = {
+    id: 'node_start',
+    type: 'start',
+    position: { x: 250, y: 50 },
+    data: { label: 'Início' },
+    deletable: false,
+  }
+
   useEffect(() => {
     if (flowId && flowId !== 'new') {
       loadFlow()
+    } else {
+      // Fluxo novo — já coloca o nó start no canvas
+      setNodes([START_NODE])
     }
   }, [flowId])
 
@@ -124,11 +136,11 @@ function FlowBuilderInner() {
         }
       }
 
-      // Ctrl+C - Copiar nó
+      // Ctrl+C - Copiar nó (exceto start)
       if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
         if (selectedNodeId) {
           const node = nodes.find(n => n.id === selectedNodeId)
-          if (node) {
+          if (node && node.type !== 'start') {
             setCopiedNode(node)
           }
         }
@@ -233,7 +245,11 @@ function FlowBuilderInner() {
       setFlowDescription(flow.description || '')
 
       if (flow.data.nodes) {
-        setNodes(flow.data.nodes)
+        const hasStart = flow.data.nodes.some((n) => n.type === 'start')
+        const loadedNodes = hasStart
+          ? flow.data.nodes
+          : [START_NODE, ...flow.data.nodes]
+        setNodes(loadedNodes)
       }
       if (flow.data.edges) {
         setEdges(applyEdgeStyles(flow.data.edges))
@@ -397,6 +413,15 @@ function FlowBuilderInner() {
         return
       }
 
+      // Bloqueia mais de um nó start por fluxo
+      if (type === 'start') {
+        const hasStart = nodes.some((n) => n.type === 'start')
+        if (hasStart) {
+          alert('Já existe um nó de Início neste fluxo.')
+          return
+        }
+      }
+
       // Converte coordenadas da tela para coordenadas do canvas do ReactFlow
       const position = screenToFlowPosition({
         x: event.clientX,
@@ -412,11 +437,12 @@ function FlowBuilderInner() {
 
       setNodes((nds) => nds.concat(newNode))
     },
-    [screenToFlowPosition, setNodes]
+    [screenToFlowPosition, setNodes, nodes]
   )
 
   const getDefaultNodeData = (type) => {
     const defaults = {
+      start: { label: 'Início' },
       message: { message: 'Nova mensagem' },
       button: { message: 'Escolha uma opção', buttons: ['Opção 1', 'Opção 2'] },
       list: {
@@ -528,6 +554,8 @@ function FlowBuilderInner() {
   }
 
   const onDeleteNode = (nodeId) => {
+    const node = nodes.find((n) => n.id === nodeId)
+    if (node && node.type === 'start') return
     setNodes((nds) => nds.filter((n) => n.id !== nodeId))
     setEdges((eds) =>
       eds.filter((e) => e.source !== nodeId && e.target !== nodeId)

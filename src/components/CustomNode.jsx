@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Handle, Position } from 'reactflow'
 
 const nodeIcons = {
+  start: '▶️',
   message: '💬',
   button: '🔘',
   list: '📋',
@@ -23,6 +24,7 @@ const nodeIcons = {
 }
 
 const nodeLabels = {
+  start: 'Início',
   message: 'Mensagem',
   button: 'Botões',
   list: 'Lista',
@@ -169,6 +171,12 @@ function CustomNode({ data, type, selected, id }) {
 
   const getNodeContent = () => {
     switch (type) {
+      case 'start':
+        return (
+          <div className="node-content" style={{ textAlign: 'center', color: '#4CAF50', fontWeight: 600 }}>
+            Início do fluxo
+          </div>
+        )
       case 'message':
         return (
           <div className="node-content">
@@ -964,6 +972,33 @@ function CustomNode({ data, type, selected, id }) {
             pointerEvents: 'all',
           }}
         />
+      </div>
+    )
+  }
+
+  // Nó start: só saída, visual diferenciado, sem delete
+  if (type === 'start') {
+    return (
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          position: 'relative',
+          zIndex: hovered ? 1000 : 'auto',
+          border: '2px solid #4CAF50',
+          borderRadius: '8px',
+          background: 'var(--node-bg, #fff)',
+        }}
+      >
+        <div style={{ padding: '5px', position: 'relative' }}>
+          <div className="node-header" style={{ color: '#4CAF50' }}>
+            <span style={{ marginRight: '5px' }}>{icon}</span>
+            {label}
+          </div>
+          {getNodeContent()}
+        </div>
+
+        <Handle type="source" position={Position.Bottom} />
       </div>
     )
   }
