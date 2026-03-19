@@ -2106,6 +2106,98 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
           </>
         )
 
+      case 'audio_transcription':
+        return (
+          <>
+            <div className="form-group">
+              <label>Rótulo</label>
+              <input
+                type="text"
+                value={data.label || ''}
+                onChange={(e) => updateData('label', e.target.value)}
+                placeholder="Transcrição de Áudio"
+              />
+            </div>
+            <div className="form-group">
+              <label>Provedor de STT</label>
+              <select
+                value={data.provider || 'openai'}
+                onChange={(e) => updateData('provider', e.target.value)}
+              >
+                <option value="openai">OpenAI Whisper</option>
+              </select>
+              <FieldHelper
+                description="Serviço de Speech-to-Text que converte áudio em texto. Novos provedores serão adicionados futuramente."
+              />
+            </div>
+            <div className="form-group">
+              <label>Modelo</label>
+              <select
+                value={data.model || 'whisper-1'}
+                onChange={(e) => updateData('model', e.target.value)}
+              >
+                <option value="whisper-1">whisper-1 (padrão)</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Idioma</label>
+              <select
+                value={data.language || 'pt'}
+                onChange={(e) => updateData('language', e.target.value)}
+              >
+                <option value="pt">Português</option>
+                <option value="en">Inglês</option>
+                <option value="es">Espanhol</option>
+                <option value="fr">Francês</option>
+                <option value="de">Alemão</option>
+                <option value="it">Italiano</option>
+                <option value="ja">Japonês</option>
+                <option value="ko">Coreano</option>
+                <option value="zh">Chinês</option>
+                <option value="ar">Árabe</option>
+              </select>
+              <FieldHelper
+                description="Idioma principal do áudio. Definir o idioma correto melhora a precisão da transcrição."
+              />
+            </div>
+            <ApiKeyField
+              label="API Key"
+              value={data.api_key || ''}
+              onChange={(val) => updateData('api_key', val)}
+              flowId={flowId}
+              provider={data.provider || 'openai'}
+              helpText="Necessária para transcrever áudios recebidos"
+            />
+            <div className="form-group">
+              <label>Mensagem de fallback</label>
+              <textarea
+                value={data.fallback_message || ''}
+                onChange={(e) => updateData('fallback_message', e.target.value)}
+                placeholder="Não foi possível processar seu áudio. Por favor, envie sua mensagem por texto."
+              />
+              <FieldHelper
+                description="Mensagem enviada quando a transcrição falha ou quando o usuário envia áudio e o STT não está configurado corretamente."
+              />
+            </div>
+            <div style={{
+              padding: '12px',
+              background: 'rgba(255, 152, 0, 0.1)',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 152, 0, 0.3)',
+              marginTop: '12px',
+              fontSize: '0.85rem',
+            }}>
+              <strong>📌 Como usar:</strong>
+              <p style={{ margin: '8px 0 0 0', lineHeight: 1.5 }}>
+                Conecte este nó ao ponto <span style={{ color: '#FF9800' }}>●</span> lateral
+                do nó <strong>Início</strong>. Quando conectado, mensagens de áudio
+                serão transcritas automaticamente antes de chegar ao fluxo.
+                O texto transcrito é processado como se o usuário tivesse digitado.
+              </p>
+            </div>
+          </>
+        )
+
       case 'ai_router':
         return (
           <>

@@ -100,6 +100,12 @@ const nodeDefinitions = [
     icon: '🏁',
     description: 'Finaliza a conversa',
   },
+  {
+    type: 'audio_transcription',
+    label: 'Transcrição de Áudio',
+    icon: '🎤',
+    description: 'Conecte ao Início para ativar STT',
+  },
 ]
 
 function Sidebar({ sidebarPinned, onTogglePin }) {

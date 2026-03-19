@@ -51,6 +51,7 @@ const nodeTypes = {
   jump_to: CustomNode,
   end: CustomNode,
   input: CustomNode,
+  audio_transcription: CustomNode,
 }
 
 let id = 0
@@ -332,6 +333,15 @@ function FlowBuilderInner() {
         const targetNode = nodes.find((n) => n.id === connection.target)
         return targetNode?.type === 'ai_agent'
       }
+      // Handle "config" do start só aceita helpers (audio_transcription, etc)
+      if (connection.targetHandle === 'config') {
+        const srcNode = nodes.find((n) => n.id === connection.source)
+        return srcNode?.type === 'audio_transcription'
+      }
+      // audio_transcription só pode conectar no handle "config" do start
+      if (sourceNode?.type === 'audio_transcription') {
+        return connection.targetHandle === 'config'
+      }
       return true
     },
     [nodes]
@@ -347,6 +357,14 @@ function FlowBuilderInner() {
       const targetIsPane = event.target.classList.contains('react-flow__pane')
 
       if (targetIsPane && connectingNodeId.current) {
+        const { handleType, handleId } = connectingNodeId.current
+
+        // Não mostra menu ao arrastar do handle "config" (target) do Start
+        if (handleType === 'target' && handleId === 'config') {
+          connectingNodeId.current = null
+          return
+        }
+
         // Pega a posição do mouse
         setConnectionMenu({
           x: event.clientX,
@@ -563,6 +581,14 @@ function FlowBuilderInner() {
         context_key: 'user_input',
         validation: {},
         label: 'Input do usuário',
+      },
+      audio_transcription: {
+        provider: 'openai',
+        model: 'whisper-1',
+        language: 'pt',
+        api_key: '',
+        fallback_message: 'Não foi possível processar seu áudio. Por favor, envie sua mensagem por texto.',
+        label: 'Transcrição de Áudio',
       },
     }
 
@@ -1242,6 +1268,11 @@ function FlowBuilderInner() {
                   // ai_tool → só pode conectar em ai_agent (handle tools)
                   if (sourceType === 'ai_tool') {
                     return [{ type: 'ai_agent', icon: '🧠', label: 'Agente IA' }]
+                  }
+
+                  // Handle config_out do audio_transcription → não cria nó
+                  if (handle === 'config_out' || sourceType === 'audio_transcription') {
+                    return [{ type: 'start', icon: '▶️', label: 'Conectar ao Início (arraste até o nó Início)' }]
                   }
 
                   // Handle de tools (do ai_agent) → tipos de tool
