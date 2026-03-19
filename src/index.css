@@ -994,6 +994,8 @@ body {
   font-size: 0.85rem;
   line-height: 1.5;
   animation: pgFadeIn 0.2s ease;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 @keyframes pgFadeIn {
