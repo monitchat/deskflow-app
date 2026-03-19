@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useTheme } from '../contexts/ThemeContext'
 import { useToast } from '../contexts/ToastContext'
+import ConfirmModal from './ConfirmModal'
 import api from '../config/axios'
 
 function Playground({ flowId, onClose }) {
@@ -11,6 +13,7 @@ function Playground({ flowId, onClose }) {
   const [messages, setMessages] = useState([])
   const [inputText, setInputText] = useState('')
   const [loading, setLoading] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [loadingSessions, setLoadingSessions] = useState(false)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
@@ -48,9 +51,14 @@ function Playground({ flowId, onClose }) {
   }
 
   // Deleta sessão atual
+  const handleDeleteSession = () => {
+    if (!selectedSession) return
+    setConfirmDelete(true)
+  }
+
   const deleteCurrentSession = async () => {
     if (!selectedSession) return
-    if (!window.confirm(`Deseja deletar a sessão ${selectedSession}?`)) return
+    setConfirmDelete(false)
 
     try {
       await api.delete(`/api/v1/flows/playground/session/${selectedSession}?flow_id=${flowId}`)
@@ -73,7 +81,7 @@ function Playground({ flowId, onClose }) {
     if (text.trim() || buttonId) {
       setMessages(prev => [...prev, {
         type: 'user',
-        text: buttonId || text,
+        text: text || buttonId,
         timestamp: new Date()
       }])
     }
@@ -262,7 +270,7 @@ function Playground({ flowId, onClose }) {
             {buttons.map((button, idx) => (
               <button
                 key={idx}
-                onClick={() => sendMessage('', selectedSession, button.id)}
+                onClick={() => sendMessage(button.title, selectedSession, button.id)}
                 disabled={loading}
                 className="pg-btn pg-btn-action"
               >
@@ -286,7 +294,7 @@ function Playground({ flowId, onClose }) {
                 {section.rows && section.rows.map((row, rIdx) => (
                   <button
                     key={rIdx}
-                    onClick={() => sendMessage('', selectedSession, row.id)}
+                    onClick={() => sendMessage(row.title, selectedSession, row.id)}
                     disabled={loading}
                     className="pg-btn pg-btn-list"
                   >
@@ -375,7 +383,7 @@ function Playground({ flowId, onClose }) {
           </button>
           {selectedSession && (
             <button
-              onClick={deleteCurrentSession}
+              onClick={handleDeleteSession}
               title="Deletar sessão atual"
               className="pg-icon-btn pg-icon-btn-danger"
             >
@@ -475,6 +483,19 @@ function Playground({ flowId, onClose }) {
           </button>
         </form>
       </div>
+
+      {confirmDelete && createPortal(
+        <ConfirmModal
+          title="Excluir sessão"
+          message={`Deseja excluir a sessão ${selectedSession}? Todas as mensagens serão perdidas.`}
+          confirmText="Excluir"
+          cancelText="Cancelar"
+          variant="destructive"
+          onConfirm={deleteCurrentSession}
+          onCancel={() => setConfirmDelete(false)}
+        />,
+        document.body
+      )}
     </div>
   )
 }

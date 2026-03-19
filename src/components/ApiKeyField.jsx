@@ -6,6 +6,8 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
   const [mode, setMode] = useState(isVariable ? 'variable' : 'direct')
   const [secretKeys, setSecretKeys] = useState([])
   const [variableKeys, setVariableKeys] = useState([])
+  const [globalSecretKeys, setGlobalSecretKeys] = useState([])
+  const [globalEnvKeys, setGlobalEnvKeys] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
 
@@ -14,6 +16,7 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
       loadSecretKeys()
       loadVariableKeys()
     }
+    loadGlobalKeys()
   }, [flowId])
 
   const loadSecretKeys = async () => {
@@ -42,6 +45,23 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
     }
   }
 
+  const loadGlobalKeys = async () => {
+    try {
+      const [sRes, eRes] = await Promise.all([
+        api.get('/api/v1/settings/secrets').catch(() => null),
+        api.get('/api/v1/settings/envs').catch(() => null),
+      ])
+      if (sRes && sRes.data.success && sRes.data.data) {
+        setGlobalSecretKeys(sRes.data.data.keys || [])
+      }
+      if (eRes && eRes.data.success && eRes.data.data) {
+        setGlobalEnvKeys(eRes.data.data.keys || [])
+      }
+    } catch (err) {
+      // silently fail
+    }
+  }
+
   const placeholder = provider === 'gemini' ? 'AIza...' : 'sk-proj-...'
 
   const parseVariable = () => {
@@ -59,8 +79,36 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
     return `\${{${type}.${name.trim()}}}`
   }
 
-  // Filtra sugestões baseado no tipo e no que o usuário digitou
-  const availableKeys = varType === 'secret' ? secretKeys : variableKeys
+  // Se não tem flowId, mostra só globais
+  const isGlobalMode = !flowId
+
+  // Merge flow + global keys (deduplicated)
+  const allSecretKeys = isGlobalMode
+    ? globalSecretKeys
+    : [...new Set([...secretKeys, ...globalSecretKeys])]
+  const allVariableKeys = isGlobalMode
+    ? globalEnvKeys
+    : [...new Set([...variableKeys, ...globalEnvKeys])]
+
+  // No modo global, combina tudo numa lista só
+  const availableKeys = isGlobalMode
+    ? [...new Set([...globalSecretKeys, ...globalEnvKeys])]
+    : (varType === 'secret' ? allSecretKeys : allVariableKeys)
+
+  // Track which are global-only for labeling
+  const isGlobalOnly = (key) => {
+    if (isGlobalMode) return true
+    if (varType === 'secret') return !secretKeys.includes(key) && globalSecretKeys.includes(key)
+    return !variableKeys.includes(key) && globalEnvKeys.includes(key)
+  }
+
+  // Track tipo da key global
+  const getGlobalKeyType = (key) => {
+    if (globalSecretKeys.includes(key)) return 'secret'
+    if (globalEnvKeys.includes(key)) return 'env'
+    return 'secret'
+  }
+
   const suggestions = availableKeys.filter(
     k => !varName || k.toLowerCase().includes(varName.toLowerCase())
   )
@@ -101,7 +149,7 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
             transition: 'all 0.15s',
           }}
         >
-          📦 Usar Variável
+          {isGlobalMode ? '🌐 Usar Credencial Global' : '📦 Usar Variável'}
         </button>
       </div>
 
@@ -123,19 +171,21 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
       ) : (
         <>
           <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'stretch' }}>
-            <select
-              value={varType}
-              onChange={(e) => {
-                const newType = e.target.value
-                // Limpa o nome ao trocar de tipo
-                onChange(`\${{${newType}.}}`)
-                setShowSuggestions(true)
-              }}
-              style={{ ...inputStyle, width: '130px', flex: 'none', position: 'relative', zIndex: 100 }}
-            >
-              <option value="secret">secret.</option>
-              <option value="env">env.</option>
-            </select>
+            {!isGlobalMode && (
+              <select
+                value={varType}
+                onChange={(e) => {
+                  const newType = e.target.value
+                  // Limpa o nome ao trocar de tipo
+                  onChange(`\${{${newType}.}}`)
+                  setShowSuggestions(true)
+                }}
+                style={{ ...inputStyle, width: '130px', flex: 'none', position: 'relative', zIndex: 100 }}
+              >
+                <option value="secret">secret.</option>
+                <option value="env">env.</option>
+              </select>
+            )}
             <div style={{ flex: 1, position: 'relative' }}>
               <input
                 type="text"
@@ -159,7 +209,9 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
                     setSelectedIndex((prev) => (prev - 1 + items.length) % items.length)
                   } else if (e.key === 'Enter' && selectedIndex >= 0) {
                     e.preventDefault()
-                    onChange(buildVariable(varType, items[selectedIndex]))
+                    const key = items[selectedIndex]
+                    const type = isGlobalMode ? getGlobalKeyType(key) : varType
+                    onChange(buildVariable(type, key))
                     setShowSuggestions(false)
                     setSelectedIndex(-1)
                   } else if (e.key === 'Escape') {
@@ -167,7 +219,7 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
                     setSelectedIndex(-1)
                   }
                 }}
-                placeholder={varType === 'secret' ? 'OPENAI_KEY' : 'OPENAI_API_KEY'}
+                placeholder={isGlobalMode ? 'Selecione uma credencial global' : (varType === 'secret' ? 'OPENAI_KEY' : 'OPENAI_API_KEY')}
                 style={{ ...inputStyle, fontFamily: 'monospace' }}
                 autoFocus
               />
@@ -194,7 +246,8 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
                       type="button"
                       onMouseDown={(e) => {
                         e.preventDefault()
-                        onChange(buildVariable(varType, key))
+                        const type = isGlobalMode ? getGlobalKeyType(key) : varType
+                        onChange(buildVariable(type, key))
                         setShowSuggestions(false)
                         setSelectedIndex(-1)
                       }}
@@ -215,8 +268,21 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
                         borderBottom: '1px solid #0f172a',
                       }}
                     >
-                      <span style={{ color: varType === 'secret' ? '#8B5CF6' : '#06b6d4', fontSize: '0.7rem' }}>{varType}.</span>
+                      {(() => {
+                        const keyType = isGlobalMode ? getGlobalKeyType(key) : varType
+                        return <span style={{ color: keyType === 'secret' ? '#8B5CF6' : '#06b6d4', fontSize: '0.7rem' }}>{keyType}.</span>
+                      })()}
                       <span>{key}</span>
+                      {isGlobalOnly(key) && (
+                        <span style={{
+                          fontSize: '0.6rem',
+                          color: '#f59e0b',
+                          backgroundColor: 'rgba(245,158,11,0.15)',
+                          padding: '0.1rem 0.3rem',
+                          borderRadius: '3px',
+                          marginLeft: 'auto',
+                        }}>global</span>
+                      )}
                     </button>
                   ))}
                   {varName && suggestions.length === 0 && availableKeys.length > 0 && !availableKeys.includes(varName) && (
@@ -228,7 +294,7 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
                       alignItems: 'center',
                       gap: '0.3rem',
                     }}>
-                      ⚠️ "{varName}" não encontrado no fluxo
+                      ⚠️ "{varName}" não encontrado {isGlobalMode ? 'nas configurações globais' : 'no fluxo'}
                     </div>
                   )}
                 </div>
@@ -253,9 +319,11 @@ function ApiKeyField({ value, onChange, flowId, provider }) {
           )}
 
           <small style={helpStyle}>
-            {varType === 'secret'
-              ? 'Configure secrets em menu → Variáveis de Ambiente'
-              : 'Variável definida no .env ou docker-compose do servidor'
+            {isGlobalMode
+              ? 'Configure credenciais globais no botão ⚙️ do header'
+              : varType === 'secret'
+                ? 'Configure secrets em menu → Variáveis de Ambiente'
+                : 'Variável definida no .env ou docker-compose do servidor'
             }
           </small>
         </>
