@@ -89,6 +89,18 @@ const nodeDefinitions = [
     description: 'Envia documento, imagem ou link',
   },
   {
+    type: 'loop',
+    label: 'Loop (Repetição)',
+    icon: '🔄',
+    description: 'Itera sobre uma lista/dict do contexto',
+  },
+  {
+    type: 'expression',
+    label: 'Expressão',
+    icon: '📝',
+    description: 'Concatena, formata e calcula valores',
+  },
+  {
     type: 'jump_to',
     label: 'Pular para',
     icon: '↗️',

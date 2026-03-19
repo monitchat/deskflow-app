@@ -49,6 +49,8 @@ const nodeTypes = {
   set_ticket_status: CustomNode,
   media: CustomNode,
   jump_to: CustomNode,
+  loop: CustomNode,
+  expression: CustomNode,
   end: CustomNode,
   input: CustomNode,
   audio_transcription: CustomNode,
@@ -589,6 +591,20 @@ function FlowBuilderInner() {
         api_key: '',
         fallback_message: 'Não foi possível processar seu áudio. Por favor, envie sua mensagem por texto.',
         label: 'Transcrição de Áudio',
+      },
+      loop: {
+        source_variable: '',
+        item_variable: 'item',
+        max_iterations: 50,
+        label: 'Loop',
+      },
+      expression: {
+        template: '',
+        context_key: 'resultado',
+        mode: 'set',
+        separator: '',
+        operations: [],
+        label: 'Expressão',
       },
     }
 
@@ -1298,6 +1314,8 @@ function FlowBuilderInner() {
                       { type: 'delay', icon: '⏱️', label: 'Delay' },
                       { type: 'transfer', icon: '👤', label: 'Transferir' },
                       { type: 'media', icon: '📎', label: 'Mídia' },
+                      { type: 'loop', icon: '🔄', label: 'Loop' },
+                      { type: 'expression', icon: '📝', label: 'Expressão' },
                       { type: 'jump_to', icon: '↗️', label: 'Pular para' },
                       { type: 'end', icon: '🏁', label: 'Fim' },
                     ]
