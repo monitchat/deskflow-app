@@ -573,7 +573,7 @@ function FlowBuilderInner() {
         label: 'Pular para',
       },
       end: {
-        message: 'A Client agradece o seu contato!',
+        message: 'Agradecemos o seu contato! Encerrando o atendimento.',
         label: 'Finalizar',
       },
       input: {
@@ -1123,324 +1123,324 @@ function FlowBuilderInner() {
       </Header>
       <div className="flow-builder">
 
-      <div className="flow-builder-content">
-        {/* Aba visível para abrir sidebar quando escondida */}
-        {!sidebarPinned && !sidebarVisible && (
+        <div className="flow-builder-content">
+          {/* Aba visível para abrir sidebar quando escondida */}
+          {!sidebarPinned && !sidebarVisible && (
+            <div
+              onClick={() => setSidebarVisible(true)}
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                zIndex: 50,
+                width: '24px',
+                height: '60px',
+                backgroundColor: 'var(--bg-surface)',
+                border: '1px solid var(--border)',
+                borderLeft: 'none',
+                borderRadius: '0 8px 8px 0',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '2px 0 8px rgba(0,0,0,0.15)',
+                transition: 'all 0.2s',
+                color: 'var(--text-dim)',
+                fontSize: '0.7rem',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--accent)'
+                e.currentTarget.style.color = '#fff'
+                e.currentTarget.style.width = '28px'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--bg-surface)'
+                e.currentTarget.style.color = 'var(--text-dim)'
+                e.currentTarget.style.width = '24px'
+              }}
+            >
+              {'\u276F'}
+            </div>
+          )}
+
           <div
-            onClick={() => setSidebarVisible(true)}
+            onMouseLeave={() => {
+              if (!sidebarPinned) setSidebarVisible(false)
+            }}
             style={{
-              position: 'absolute',
+              position: sidebarPinned ? 'relative' : 'absolute',
               left: 0,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              zIndex: 50,
-              width: '24px',
-              height: '60px',
-              backgroundColor: 'var(--bg-surface)',
-              border: '1px solid var(--border)',
-              borderLeft: 'none',
-              borderRadius: '0 8px 8px 0',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '2px 0 8px rgba(0,0,0,0.15)',
-              transition: 'all 0.2s',
-              color: 'var(--text-dim)',
-              fontSize: '0.7rem',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--accent)'
-              e.currentTarget.style.color = '#fff'
-              e.currentTarget.style.width = '28px'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--bg-surface)'
-              e.currentTarget.style.color = 'var(--text-dim)'
-              e.currentTarget.style.width = '24px'
+              top: 0,
+              height: '100%',
+              zIndex: sidebarPinned ? 'auto' : 40,
+              transform: sidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
+              transition: 'transform 0.25s ease',
+              boxShadow: !sidebarPinned && sidebarVisible ? '4px 0 20px rgba(0,0,0,0.2)' : 'none',
             }}
           >
-            {'\u276F'}
+            <Sidebar sidebarPinned={sidebarPinned} onTogglePin={() => {
+              const next = !sidebarPinned
+              setSidebarPinned(next)
+              localStorage.setItem('deskflow-sidebar-pinned', String(next))
+              if (!next) setSidebarVisible(false)
+              else setSidebarVisible(true)
+            }} />
           </div>
-        )}
 
-        <div
-          onMouseLeave={() => {
-            if (!sidebarPinned) setSidebarVisible(false)
-          }}
-          style={{
-            position: sidebarPinned ? 'relative' : 'absolute',
-            left: 0,
-            top: 0,
-            height: '100%',
-            zIndex: sidebarPinned ? 'auto' : 40,
-            transform: sidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
-            transition: 'transform 0.25s ease',
-            boxShadow: !sidebarPinned && sidebarVisible ? '4px 0 20px rgba(0,0,0,0.2)' : 'none',
-          }}
-        >
-          <Sidebar sidebarPinned={sidebarPinned} onTogglePin={() => {
-            const next = !sidebarPinned
-            setSidebarPinned(next)
-            localStorage.setItem('deskflow-sidebar-pinned', String(next))
-            if (!next) setSidebarVisible(false)
-            else setSidebarVisible(true)
-          }} />
+          <div className="flow-builder-canvas">
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              isValidConnection={isValidConnection}
+              onConnectStart={onConnectStart}
+              onConnectEnd={onConnectEnd}
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+              onNodeClick={onNodeClick}
+              onEdgeClick={onEdgeClick}
+              onSelectionChange={onSelectionChange}
+              nodeTypes={nodeTypes}
+              fitView
+            >
+              <Background />
+              <Controls />
+              <MiniMap />
+            </ReactFlow>
+
+            {/* Menu contextual para adicionar nó após arrastar conexão */}
+            {connectionMenu && (
+              <>
+                {/* Overlay para fechar o menu ao clicar fora */}
+                <div
+                  style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    zIndex: 999,
+                  }}
+                  onClick={() => setConnectionMenu(null)}
+                />
+
+                {/* Menu de opções */}
+                <div
+                  style={{
+                    position: 'fixed',
+                    left: connectionMenu.x,
+                    top: connectionMenu.y,
+                    backgroundColor: 'var(--bg-surface, #1e293b)',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                    padding: '0.5rem',
+                    zIndex: 1000,
+                    minWidth: '200px',
+                    border: '1px solid var(--border, #334155)',
+                  }}
+                >
+                  <div style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 'bold',
+                    color: 'var(--text-dim, #94a3b8)',
+                    padding: '0.5rem 0.5rem 0.25rem',
+                    borderBottom: '1px solid var(--border, #334155)',
+                    marginBottom: '0.25rem'
+                  }}>
+                    {connectionMenu.sourceHandle === 'subagents' ? '🧠 Adicionar Sub Agente'
+                      : connectionMenu.sourceHandle === 'tools' ? '🔧 Adicionar Tool'
+                        : nodes.find(n => n.id === connectionMenu.sourceNodeId)?.type === 'ai_tool' ? '🧠 Conectar ao Agente'
+                          : '➕ Adicionar Nó'}
+                  </div>
+                  {(() => {
+                    const handle = connectionMenu.sourceHandle
+                    const sourceNode = nodes.find(n => n.id === connectionMenu.sourceNodeId)
+                    const sourceType = sourceNode?.type
+
+                    // Handle de subagentes → só ai_agent
+                    if (handle === 'subagents') {
+                      return [{ type: 'ai_agent', icon: '🧠', label: 'Sub Agente' }]
+                    }
+
+                    // ai_tool → só pode conectar em ai_agent (handle tools)
+                    if (sourceType === 'ai_tool') {
+                      return [{ type: 'ai_agent', icon: '🧠', label: 'Agente IA' }]
+                    }
+
+                    // Handle config_out do audio_transcription → não cria nó
+                    if (handle === 'config_out' || sourceType === 'audio_transcription') {
+                      return [{ type: 'start', icon: '▶️', label: 'Conectar ao Início (arraste até o nó Início)' }]
+                    }
+
+                    // Handle de tools (do ai_agent) → tipos de tool
+                    if (handle === 'tools') {
+                      return [
+                        { type: 'ai_tool', icon: '🔧', label: 'Tool HTTP', toolDefaults: { tool_type: 'http_request', name: '', method: 'GET', url: '' } },
+                        { type: 'ai_tool', icon: '🧠', label: 'Tool RAG', toolDefaults: { tool_type: 'knowledge_search', name: 'buscar_conhecimento', description: 'Busca informações na base de conhecimento.' } },
+                        { type: 'ai_tool', icon: '💾', label: 'Tool Contexto', toolDefaults: { tool_type: 'context_lookup', name: 'buscar_contexto', description: 'Busca dados do contexto da conversa.' } },
+                        { type: 'ai_tool', icon: '⚡', label: 'Tool Custom', toolDefaults: { tool_type: 'function', name: 'custom', description: '', code: '# args, context, secrets\n\nresult = {"status": "ok"}' } },
+                      ]
+                    }
+
+                    return [
+                      { type: 'message', icon: '💬', label: 'Mensagem' },
+                      { type: 'button', icon: '🔘', label: 'Botões' },
+                      { type: 'list', icon: '📋', label: 'Lista' },
+                      { type: 'input', icon: '⌨️', label: 'Input' },
+                      { type: 'router', icon: '🎯', label: 'Router' },
+                      { type: 'ai_router', icon: '🤖', label: 'AI Router' },
+                      { type: 'ai_agent', icon: '🧠', label: 'Agente IA' },
+                      { type: 'api_request', icon: '🌐', label: 'HTTP Request' },
+                      { type: 'set_context', icon: '💾', label: 'Salvar Contexto' },
+                      { type: 'delay', icon: '⏱️', label: 'Delay' },
+                      { type: 'transfer', icon: '👤', label: 'Transferir' },
+                      { type: 'media', icon: '📎', label: 'Mídia' },
+                      { type: 'jump_to', icon: '↗️', label: 'Pular para' },
+                      { type: 'end', icon: '🏁', label: 'Fim' },
+                    ]
+                  })().map((item) => (
+                    <button
+                      key={item.type}
+                      onClick={() => handleAddNodeFromConnection(item.type, item.toolDefaults)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        width: '100%',
+                        padding: '0.5rem',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        color: '#e2e8f0',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        borderRadius: '4px',
+                        transition: 'background-color 0.15s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#334155'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                      }}
+                    >
+                      <span style={{ fontSize: '1.2rem' }}>{item.icon}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="flow-builder-canvas">
-          <ReactFlow
+        {showNodeEditor && selectedNode && (
+          <NodeEditorModal
+            node={selectedNode}
             nodes={nodes}
             edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            isValidConnection={isValidConnection}
-            onConnectStart={onConnectStart}
-            onConnectEnd={onConnectEnd}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            onNodeClick={onNodeClick}
-            onEdgeClick={onEdgeClick}
-            onSelectionChange={onSelectionChange}
-            nodeTypes={nodeTypes}
-            fitView
-          >
-            <Background />
-            <Controls />
-            <MiniMap />
-          </ReactFlow>
+            flowId={flowId}
+            onSave={(newData) => onNodeUpdate(selectedNode.id, newData)}
+            onDelete={() => onDeleteNode(selectedNode.id)}
+            onClose={() => {
+              setShowNodeEditor(false)
+              setSelectedNode(null)
+            }}
+          />
+        )}
 
-          {/* Menu contextual para adicionar nó após arrastar conexão */}
-          {connectionMenu && (
-            <>
-              {/* Overlay para fechar o menu ao clicar fora */}
-              <div
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  zIndex: 999,
-                }}
-                onClick={() => setConnectionMenu(null)}
-              />
+        {showEdgeEditor && selectedEdge && (
+          <EdgeEditorModal
+            edge={selectedEdge}
+            onSave={onEdgeUpdate}
+            onDelete={() => onDeleteEdge(selectedEdge.id)}
+            onClose={() => {
+              setShowEdgeEditor(false)
+              setSelectedEdge(null)
+            }}
+          />
+        )}
 
-              {/* Menu de opções */}
-              <div
-                style={{
-                  position: 'fixed',
-                  left: connectionMenu.x,
-                  top: connectionMenu.y,
-                  backgroundColor: 'var(--bg-surface, #1e293b)',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-                  padding: '0.5rem',
-                  zIndex: 1000,
-                  minWidth: '200px',
-                  border: '1px solid var(--border, #334155)',
-                }}
-              >
-                <div style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 'bold',
-                  color: 'var(--text-dim, #94a3b8)',
-                  padding: '0.5rem 0.5rem 0.25rem',
-                  borderBottom: '1px solid var(--border, #334155)',
-                  marginBottom: '0.25rem'
-                }}>
-                  {connectionMenu.sourceHandle === 'subagents' ? '🧠 Adicionar Sub Agente'
-                    : connectionMenu.sourceHandle === 'tools' ? '🔧 Adicionar Tool'
-                    : nodes.find(n => n.id === connectionMenu.sourceNodeId)?.type === 'ai_tool' ? '🧠 Conectar ao Agente'
-                    : '➕ Adicionar Nó'}
-                </div>
-                {(() => {
-                  const handle = connectionMenu.sourceHandle
-                  const sourceNode = nodes.find(n => n.id === connectionMenu.sourceNodeId)
-                  const sourceType = sourceNode?.type
+        <SessionDebugPanel
+          isOpen={showDebugPanel}
+          onClose={() => setShowDebugPanel(false)}
+        />
 
-                  // Handle de subagentes → só ai_agent
-                  if (handle === 'subagents') {
-                    return [{ type: 'ai_agent', icon: '🧠', label: 'Sub Agente' }]
-                  }
+        {showPlayground && (
+          <Playground
+            flowId={flowId}
+            onClose={() => setShowPlayground(false)}
+          />
+        )}
 
-                  // ai_tool → só pode conectar em ai_agent (handle tools)
-                  if (sourceType === 'ai_tool') {
-                    return [{ type: 'ai_agent', icon: '🧠', label: 'Agente IA' }]
-                  }
+        {showSecrets && flowId && flowId !== 'new' && (
+          <SecretsPanel
+            flowId={flowId}
+            onClose={() => setShowSecrets(false)}
+          />
+        )}
 
-                  // Handle config_out do audio_transcription → não cria nó
-                  if (handle === 'config_out' || sourceType === 'audio_transcription') {
-                    return [{ type: 'start', icon: '▶️', label: 'Conectar ao Início (arraste até o nó Início)' }]
-                  }
+        {showAccounts && flowId && flowId !== 'new' && (
+          <AccountsPanel
+            flowId={flowId}
+            onClose={() => setShowAccounts(false)}
+          />
+        )}
 
-                  // Handle de tools (do ai_agent) → tipos de tool
-                  if (handle === 'tools') {
-                    return [
-                      { type: 'ai_tool', icon: '🔧', label: 'Tool HTTP', toolDefaults: { tool_type: 'http_request', name: '', method: 'GET', url: '' } },
-                      { type: 'ai_tool', icon: '🧠', label: 'Tool RAG', toolDefaults: { tool_type: 'knowledge_search', name: 'buscar_conhecimento', description: 'Busca informações na base de conhecimento.' } },
-                      { type: 'ai_tool', icon: '💾', label: 'Tool Contexto', toolDefaults: { tool_type: 'context_lookup', name: 'buscar_contexto', description: 'Busca dados do contexto da conversa.' } },
-                      { type: 'ai_tool', icon: '⚡', label: 'Tool Custom', toolDefaults: { tool_type: 'function', name: 'custom', description: '', code: '# args, context, secrets\n\nresult = {"status": "ok"}' } },
-                    ]
-                  }
+        {showApiKeys && (
+          <ApiKeysPanel
+            onClose={() => setShowApiKeys(false)}
+          />
+        )}
 
-                  return [
-                    { type: 'message', icon: '💬', label: 'Mensagem' },
-                    { type: 'button', icon: '🔘', label: 'Botões' },
-                    { type: 'list', icon: '📋', label: 'Lista' },
-                    { type: 'input', icon: '⌨️', label: 'Input' },
-                    { type: 'router', icon: '🎯', label: 'Router' },
-                    { type: 'ai_router', icon: '🤖', label: 'AI Router' },
-                    { type: 'ai_agent', icon: '🧠', label: 'Agente IA' },
-                    { type: 'api_request', icon: '🌐', label: 'HTTP Request' },
-                    { type: 'set_context', icon: '💾', label: 'Salvar Contexto' },
-                    { type: 'delay', icon: '⏱️', label: 'Delay' },
-                    { type: 'transfer', icon: '👤', label: 'Transferir' },
-                    { type: 'media', icon: '📎', label: 'Mídia' },
-                    { type: 'jump_to', icon: '↗️', label: 'Pular para' },
-                    { type: 'end', icon: '🏁', label: 'Fim' },
-                  ]
-                })().map((item) => (
-                  <button
-                    key={item.type}
-                    onClick={() => handleAddNodeFromConnection(item.type, item.toolDefaults)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      color: '#e2e8f0',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      borderRadius: '4px',
-                      transition: 'background-color 0.15s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#334155'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent'
-                    }}
-                  >
-                    <span style={{ fontSize: '1.2rem' }}>{item.icon}</span>
-                    <span>{item.label}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+        {showUsers && (
+          <UsersPanel
+            onClose={() => setShowUsers(false)}
+          />
+        )}
+
+        {showLogs && (
+          <ExecutionLogsPanel
+            flowId={flowId}
+            onClose={() => setShowLogs(false)}
+          />
+        )}
+
+        {showKnowledge && (
+          <KnowledgeBasePanel
+            flowId={flowId}
+            onClose={() => setShowKnowledge(false)}
+          />
+        )}
+
+        {confirmModal && (
+          <ConfirmModal
+            title={confirmModal.title}
+            message={confirmModal.message}
+            items={confirmModal.items}
+            confirmText={confirmModal.confirmText}
+            cancelText={confirmModal.cancelText}
+            variant={confirmModal.variant}
+            onConfirm={() => {
+              setConfirmModal(null)
+              confirmResolveRef.current?.(true)
+            }}
+            onCancel={() => {
+              setConfirmModal(null)
+              confirmResolveRef.current?.(false)
+            }}
+          />
+        )}
+
+        {showTutorial && (
+          <TutorialModal onClose={() => {
+            setShowTutorial(false)
+            localStorage.setItem('deskflow-tutorial-seen', 'true')
+          }} />
+        )}
       </div>
-
-      {showNodeEditor && selectedNode && (
-        <NodeEditorModal
-          node={selectedNode}
-          nodes={nodes}
-          edges={edges}
-          flowId={flowId}
-          onSave={(newData) => onNodeUpdate(selectedNode.id, newData)}
-          onDelete={() => onDeleteNode(selectedNode.id)}
-          onClose={() => {
-            setShowNodeEditor(false)
-            setSelectedNode(null)
-          }}
-        />
-      )}
-
-      {showEdgeEditor && selectedEdge && (
-        <EdgeEditorModal
-          edge={selectedEdge}
-          onSave={onEdgeUpdate}
-          onDelete={() => onDeleteEdge(selectedEdge.id)}
-          onClose={() => {
-            setShowEdgeEditor(false)
-            setSelectedEdge(null)
-          }}
-        />
-      )}
-
-      <SessionDebugPanel
-        isOpen={showDebugPanel}
-        onClose={() => setShowDebugPanel(false)}
-      />
-
-      {showPlayground && (
-        <Playground
-          flowId={flowId}
-          onClose={() => setShowPlayground(false)}
-        />
-      )}
-
-      {showSecrets && flowId && flowId !== 'new' && (
-        <SecretsPanel
-          flowId={flowId}
-          onClose={() => setShowSecrets(false)}
-        />
-      )}
-
-      {showAccounts && flowId && flowId !== 'new' && (
-        <AccountsPanel
-          flowId={flowId}
-          onClose={() => setShowAccounts(false)}
-        />
-      )}
-
-      {showApiKeys && (
-        <ApiKeysPanel
-          onClose={() => setShowApiKeys(false)}
-        />
-      )}
-
-      {showUsers && (
-        <UsersPanel
-          onClose={() => setShowUsers(false)}
-        />
-      )}
-
-      {showLogs && (
-        <ExecutionLogsPanel
-          flowId={flowId}
-          onClose={() => setShowLogs(false)}
-        />
-      )}
-
-      {showKnowledge && (
-        <KnowledgeBasePanel
-          flowId={flowId}
-          onClose={() => setShowKnowledge(false)}
-        />
-      )}
-
-      {confirmModal && (
-        <ConfirmModal
-          title={confirmModal.title}
-          message={confirmModal.message}
-          items={confirmModal.items}
-          confirmText={confirmModal.confirmText}
-          cancelText={confirmModal.cancelText}
-          variant={confirmModal.variant}
-          onConfirm={() => {
-            setConfirmModal(null)
-            confirmResolveRef.current?.(true)
-          }}
-          onCancel={() => {
-            setConfirmModal(null)
-            confirmResolveRef.current?.(false)
-          }}
-        />
-      )}
-
-      {showTutorial && (
-        <TutorialModal onClose={() => {
-          setShowTutorial(false)
-          localStorage.setItem('deskflow-tutorial-seen', 'true')
-        }} />
-      )}
-    </div>
     </>
   )
 }
