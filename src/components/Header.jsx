@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../contexts/ThemeContext'
+import GlobalSettingsPanel from './GlobalSettingsPanel'
 
 function Header({ children }) {
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
+  const [showGlobalSettings, setShowGlobalSettings] = useState(false)
   const userName = localStorage.getItem('user_name') || 'Usuário'
   const userAvatar = localStorage.getItem('user_avatar') || ''
   const firstName = userName.split(' ')[0]
@@ -76,6 +79,37 @@ function Header({ children }) {
         gap: '0.5rem',
         flexShrink: 0,
       }}>
+        <button
+          onClick={() => setShowGlobalSettings(true)}
+          title="Configuracoes Globais"
+          style={{
+            height: '30px',
+            padding: '0 0.5rem',
+            backgroundColor: 'transparent',
+            color: 'var(--header-btn-text)',
+            border: '1px solid var(--header-btn-border)',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.3rem',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'var(--accent)'
+            e.currentTarget.style.color = 'var(--accent)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'var(--header-btn-border)'
+            e.currentTarget.style.color = 'var(--header-btn-text)'
+          }}
+        >
+          <span style={{ fontSize: '0.85rem' }}>&#9881;</span>
+          Global
+        </button>
+
         <button
           onClick={() => window.open('/docs', '_blank')}
           title="Guia completo"
@@ -210,6 +244,9 @@ function Header({ children }) {
           </>
         )}
       </div>
+      {showGlobalSettings && (
+        <GlobalSettingsPanel onClose={() => setShowGlobalSettings(false)} />
+      )}
     </header>
   )
 }

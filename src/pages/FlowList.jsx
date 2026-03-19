@@ -5,6 +5,7 @@ import Header from '../components/Header'
 import AccountsPanel from '../components/AccountsPanel'
 import ConfirmModal from '../components/ConfirmModal'
 import TutorialModal from '../components/TutorialModal'
+import ImportFlowModal from '../components/ImportFlowModal'
 import { useToast } from '../contexts/ToastContext'
 
 const styles = {
@@ -183,6 +184,7 @@ function FlowList() {
   const [confirmModal, setConfirmModal] = useState(null)
   const confirmResolveRef = useRef(null)
   const [showTutorial, setShowTutorial] = useState(false)
+  const [showImportAI, setShowImportAI] = useState(false)
   const isMaster = localStorage.getItem('user_is_master') === 'true'
   const isAdmin = localStorage.getItem('user_is_admin') === 'true'
   const navigate = useNavigate()
@@ -352,6 +354,26 @@ function FlowList() {
     input.click()
   }
 
+  const handleImportAISuccess = async (flowData) => {
+    try {
+      const response = await api.post('/api/v1/flows', {
+        name: flowData.name || 'Fluxo Importado via IA',
+        description: flowData.description || 'Importado a partir de PDF',
+        data: { nodes: flowData.nodes, edges: flowData.edges },
+        is_active: false,
+      })
+
+      if (response.data.success) {
+        setShowImportAI(false)
+        toast.success('Fluxo importado com sucesso!')
+        navigate(`/flow/${response.data.data.id}`)
+      }
+    } catch (err) {
+      console.error('Error creating flow from PDF import:', err)
+      toast.error('Erro ao salvar o fluxo importado.')
+    }
+  }
+
   if (loading) {
     return (
       <div style={styles.page}>
@@ -427,6 +449,31 @@ function FlowList() {
             {isAdmin && (
               <>
                 <button
+                  onClick={() => setShowImportAI(true)}
+                  style={{
+                    padding: '0.6rem 1.2rem',
+                    border: '1px solid var(--border)',
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    backgroundColor: 'var(--bg-surface)',
+                    color: 'var(--text-muted)',
+                    transition: 'all 0.2s',
+                    background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.05), rgba(99, 102, 241, 0.05))',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.borderColor = '#7C3AED'
+                    e.target.style.color = '#7C3AED'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.borderColor = 'var(--border)'
+                    e.target.style.color = 'var(--text-muted)'
+                  }}
+                >
+                  Criar com IA
+                </button>
+                <button
                   onClick={handleImport}
                   style={{
                     padding: '0.6rem 1.2rem',
@@ -448,7 +495,7 @@ function FlowList() {
                     e.target.style.color = 'var(--text-muted)'
                   }}
                 >
-                  Importar
+                  Importar JSON
                 </button>
                 <button
                   style={styles.newButton}
@@ -735,6 +782,13 @@ function FlowList() {
 
       {showTutorial && (
         <TutorialModal onClose={() => setShowTutorial(false)} />
+      )}
+
+      {showImportAI && (
+        <ImportFlowModal
+          onClose={() => setShowImportAI(false)}
+          onSuccess={handleImportAISuccess}
+        />
       )}
 
       {confirmModal && (
