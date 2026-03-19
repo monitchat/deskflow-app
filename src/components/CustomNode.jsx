@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Handle, Position } from 'reactflow'
+import { Handle, Position, useEdges } from 'reactflow'
 
 const nodeIcons = {
   start: '▶️',
@@ -21,6 +21,7 @@ const nodeIcons = {
   jump_to: '↗️',
   end: '🏁',
   input: '⌨️',
+  audio_transcription: '🎤',
 }
 
 const nodeLabels = {
@@ -43,10 +44,12 @@ const nodeLabels = {
   jump_to: 'Pular para',
   end: 'Fim',
   input: 'Input',
+  audio_transcription: 'Transcrição',
 }
 
 function CustomNode({ data, type, selected, id }) {
   const [hovered, setHovered] = useState(false)
+  const edges = useEdges()
   const icon = nodeIcons[type] || '📦'
   const label = nodeLabels[type] || type
 
@@ -405,6 +408,24 @@ function CustomNode({ data, type, selected, id }) {
         )
       case 'end':
         return <div className="node-content">{data.label || 'Finalizar'}</div>
+      case 'audio_transcription':
+        const sttProvider = data.provider || 'openai'
+        const sttLang = data.language || 'pt'
+        const sttProviderLabels = { openai: 'OpenAI Whisper', google: 'Google STT', azure: 'Azure STT' }
+        return (
+          <div className="node-content" style={{ minWidth: '160px' }}>
+            <div style={{ marginBottom: '0.3rem', fontWeight: '600' }}>
+              {data.label || 'Transcrição de Áudio'}
+            </div>
+            <small style={{ color: 'var(--node-content-dim)' }}>
+              {sttProviderLabels[sttProvider] || sttProvider} • {sttLang}
+            </small>
+            <br />
+            <small style={{ color: data.api_key ? '#4CAF50' : '#ff6b6b' }}>
+              {data.api_key ? '🔑 API Key configurada' : '⚠️ API Key necessária'}
+            </small>
+          </div>
+        )
       case 'ai_router':
         const intents = data.intents || []
         const provider = data.ai_provider || 'openai'
@@ -1005,6 +1026,10 @@ function CustomNode({ data, type, selected, id }) {
 
   // Nó start: só saída, visual diferenciado, sem delete
   if (type === 'start') {
+    // Verificar se tem nó audio_transcription conectado
+    const hasAudioConfig = edges.some(
+      e => e.target === id && e.targetHandle === 'config'
+    )
     return (
       <div
         onMouseEnter={() => setHovered(true)}
@@ -1017,12 +1042,33 @@ function CustomNode({ data, type, selected, id }) {
           background: 'var(--node-bg, #fff)',
         }}
       >
+        {/* Handle para receber configurações (lateral esquerda) */}
+        <Handle
+          type="target"
+          position={Position.Left}
+          id="config"
+          style={{
+            background: '#FF9800',
+            width: 8,
+            height: 8,
+          }}
+        />
+
         <div style={{ padding: '5px', position: 'relative' }}>
           <div className="node-header" style={{ color: '#4CAF50' }}>
             <span style={{ marginRight: '5px' }}>{icon}</span>
             {label}
           </div>
           {getNodeContent()}
+          {hasAudioConfig && (
+            <div style={{
+              fontSize: '0.7rem',
+              color: '#FF9800',
+              marginTop: '2px',
+            }}>
+              🎤 Transcrição ativa
+            </div>
+          )}
         </div>
 
         <Handle type="source" position={Position.Bottom} />
@@ -1038,7 +1084,7 @@ function CustomNode({ data, type, selected, id }) {
       style={{ position: 'relative', zIndex: hovered ? 1000 : 'auto' }}
     >
       {renderTooltip()}
-      <Handle type="target" position={Position.Top} />
+      {type !== 'audio_transcription' && <Handle type="target" position={Position.Top} />}
 
       <div style={{ padding: '5px', position: 'relative' }}>
         {renderActionButtons()}
@@ -1049,7 +1095,15 @@ function CustomNode({ data, type, selected, id }) {
         {getNodeContent()}
       </div>
 
-      {type !== 'end' && type !== 'jump_to' && <Handle type="source" position={Position.Bottom} />}
+      {type !== 'end' && type !== 'jump_to' && type !== 'audio_transcription' && <Handle type="source" position={Position.Bottom} />}
+      {type === 'audio_transcription' && (
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="config_out"
+          style={{ background: '#FF9800', width: 8, height: 8 }}
+        />
+      )}
     </div>
   )
 }
