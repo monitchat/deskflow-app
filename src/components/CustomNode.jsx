@@ -21,6 +21,8 @@ const nodeIcons = {
   jump_to: '↗️',
   end: '🏁',
   input: '⌨️',
+  loop: '🔄',
+  expression: '📝',
   audio_transcription: '🎤',
 }
 
@@ -44,6 +46,8 @@ const nodeLabels = {
   jump_to: 'Pular para',
   end: 'Fim',
   input: 'Input',
+  loop: 'Loop',
+  expression: 'Expressão',
   audio_transcription: 'Transcrição',
 }
 
@@ -404,6 +408,70 @@ function CustomNode({ data, type, selected, id }) {
             <small style={{ color: data.target_node_id ? '#4CAF50' : '#999' }}>
               {data.target_node_id ? `→ ${data.target_node_label || data.target_node_id}` : 'Nenhum destino'}
             </small>
+          </div>
+        )
+      case 'loop':
+        return (
+          <div className="node-content">
+            {data.label || 'Loop'}
+            <br />
+            <small style={{ color: 'var(--text-dim, #999)' }}>
+              {data.source_variable
+                ? `📋 ${data.source_variable}`
+                : 'Sem variável configurada'}
+            </small>
+            {data.source_variable && (
+              <>
+                <br />
+                <small style={{ color: '#f59e0b' }}>
+                  item: <code>{'${{' + (data.item_variable || 'item') + '}}'}</code>
+                </small>
+              </>
+            )}
+            {data.max_iterations && (
+              <>
+                <br />
+                <small style={{ color: 'var(--text-dim, #999)' }}>
+                  máx: {data.max_iterations} iterações
+                </small>
+              </>
+            )}
+          </div>
+        )
+      case 'expression':
+        return (
+          <div className="node-content">
+            {data.label || 'Expressão'}
+            <br />
+            <small style={{ color: 'var(--text-dim, #999)' }}>
+              {data.mode === 'append' ? '➕ Acumular' : '✏️ Definir'}
+              {data.context_key ? ` → ${data.context_key}` : ''}
+            </small>
+            {data.template && (
+              <>
+                <br />
+                <small style={{
+                  color: 'var(--node-content-dim)',
+                  fontStyle: 'italic',
+                  maxWidth: '180px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                }}>
+                  "{data.template.substring(0, 60)}"
+                </small>
+              </>
+            )}
+            {data.operations && data.operations.length > 0 && (
+              <>
+                <br />
+                <small style={{ color: '#9C27B0' }}>
+                  🔧 {data.operations.length} operação(ões)
+                </small>
+              </>
+            )}
           </div>
         )
       case 'end':
@@ -1093,6 +1161,73 @@ function CustomNode({ data, type, selected, id }) {
         </div>
 
         <Handle type="source" position={Position.Bottom} />
+      </div>
+    )
+  }
+
+  // Para loop, usar handles de corpo (lateral) e fim (baixo)
+  if (type === 'loop') {
+    return (
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{ position: 'relative', zIndex: hovered ? 1000 : 'auto' }}
+      >
+        {renderTooltip()}
+        <Handle type="target" position={Position.Top} />
+
+        <div style={{ padding: '5px', position: 'relative' }}>
+          {renderActionButtons()}
+          <div className="node-header">
+            <span style={{ marginRight: '5px' }}>{icon}</span>
+            {label}
+          </div>
+          {getNodeContent()}
+
+          {/* Label do handle corpo */}
+          <div style={{
+            position: 'absolute',
+            right: '2px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            fontSize: '0.6rem',
+            color: '#f59e0b',
+            fontWeight: 600,
+            writingMode: 'vertical-rl',
+            letterSpacing: '1px',
+            opacity: 0.8,
+          }}>
+            Corpo
+          </div>
+        </div>
+
+        {/* Handle de corpo (lateral direita) - executa a cada iteração */}
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="loop_body"
+          isConnectable={true}
+          style={{
+            background: '#f59e0b',
+            cursor: 'crosshair',
+            pointerEvents: 'all',
+            width: 10,
+            height: 10,
+          }}
+        />
+
+        {/* Handle de fim (baixo) - quando o loop termina */}
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          id="loop_done"
+          isConnectable={true}
+          style={{
+            background: '#4CAF50',
+            cursor: 'crosshair',
+            pointerEvents: 'all',
+          }}
+        />
       </div>
     )
   }

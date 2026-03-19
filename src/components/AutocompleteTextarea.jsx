@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import api from '../config/axios'
 
-function AutocompleteTextarea({ value, onChange, placeholder, rows = 4 }) {
+function AutocompleteTextarea({ value, onChange, placeholder, rows = 4, extraSuggestions = [] }) {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [suggestions, setSuggestions] = useState([])
   const [filteredSuggestions, setFilteredSuggestions] = useState([])
@@ -13,21 +13,25 @@ function AutocompleteTextarea({ value, onChange, placeholder, rows = 4 }) {
 
   useEffect(() => {
     loadContextFields()
-  }, [])
+  }, [JSON.stringify(extraSuggestions)])
 
   const loadContextFields = async () => {
     try {
       const response = await api.get('/api/v1/flows/context/fields')
       const fields = response.data.data.fields || []
-      setSuggestions(
-        fields.map((f) => ({
-          label: f.path,
-          value: f.path,
-          example: f.example,
-        }))
-      )
+      const contextSuggestions = fields.map((f) => ({
+        label: f.path,
+        value: f.path,
+        example: f.example,
+      }))
+      // Merge com sugestões extras (ex: variáveis de loop)
+      setSuggestions([...extraSuggestions, ...contextSuggestions])
     } catch (err) {
       console.error('Error loading context fields:', err)
+      // Mesmo com erro, mostra sugestões extras
+      if (extraSuggestions.length > 0) {
+        setSuggestions(extraSuggestions)
+      }
     }
   }
 

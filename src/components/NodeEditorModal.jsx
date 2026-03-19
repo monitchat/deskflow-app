@@ -6,6 +6,40 @@ import FieldHelper from './FieldHelper'
 import ApiKeyField from './ApiKeyField'
 import KnowledgeBasePanel from './KnowledgeBasePanel'
 
+// Extrai todos os caminhos possíveis de um JSON
+function extractJsonPaths(obj, prefix = '', maxDepth = 5) {
+  const paths = []
+  const _extract = (value, currentPath, depth) => {
+    if (depth > maxDepth) return
+    if (Array.isArray(value)) {
+      paths.push({ path: currentPath, isArray: true, example: `[${value.length} items]` })
+      // Entra no primeiro item para extrair campos do array
+      if (value.length > 0 && typeof value[0] === 'object') {
+        _extract(value[0], currentPath, depth + 1)
+      }
+    } else if (value !== null && typeof value === 'object') {
+      for (const [key, val] of Object.entries(value)) {
+        const newPath = currentPath ? `${currentPath}.${key}` : key
+        if (Array.isArray(val)) {
+          paths.push({ path: newPath, isArray: true, example: `[${val.length} items]` })
+          if (val.length > 0 && typeof val[0] === 'object') {
+            _extract(val[0], newPath, depth + 1)
+          } else if (val.length > 0) {
+            paths.push({ path: `${newPath}.*`, example: val[0] })
+          }
+        } else if (val !== null && typeof val === 'object') {
+          paths.push({ path: newPath, example: '{...}' })
+          _extract(val, newPath, depth + 1)
+        } else {
+          paths.push({ path: newPath, example: val })
+        }
+      }
+    }
+  }
+  _extract(obj, prefix)
+  return paths
+}
+
 function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClose, flowId }) {
   const [data, setData] = useState(node.data)
   const [showFieldsModal, setShowFieldsModal] = useState(false)
@@ -15,6 +49,9 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
   const [apiFieldsError, setApiFieldsError] = useState(null)
   const [apiRawResult, setApiRawResult] = useState(null)
   const [showRawPayload, setShowRawPayload] = useState(false)
+
+  // Estado para exemplo de resposta
+  const [showResponseExample, setShowResponseExample] = useState(false)
 
   // Estados para teste de API Request
   const [testLoading, setTestLoading] = useState(false)
@@ -27,6 +64,48 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
   const [sessions, setSessions] = useState([])
   const [selectedSession, setSelectedSession] = useState(null)
   const [loadingSessions, setLoadingSessions] = useState(false)
+
+  // Detecta se o nó está dentro de um loop (conectado a loop_body)
+  const loopContext = (() => {
+    // Verifica se algum edge aponta para este nó vindo de um handle loop_body
+    for (const edge of edges) {
+      if (edge.target === node.id && edge.sourceHandle === 'loop_body') {
+        const loopNode = nodes.find(n => n.id === edge.source)
+        if (loopNode && loopNode.type === 'loop') {
+          return loopNode.data
+        }
+      }
+    }
+    // Verifica indiretamente — se algum nó pai na cadeia vem de um loop
+    // (para nós mais profundos no corpo do loop)
+    const visited = new Set()
+    const findLoopParent = (nodeId) => {
+      if (visited.has(nodeId)) return null
+      visited.add(nodeId)
+      for (const edge of edges) {
+        if (edge.target === nodeId) {
+          if (edge.sourceHandle === 'loop_body') {
+            const loopNode = nodes.find(n => n.id === edge.source)
+            if (loopNode && loopNode.type === 'loop') return loopNode.data
+          }
+          const result = findLoopParent(edge.source)
+          if (result) return result
+        }
+      }
+      return null
+    }
+    return findLoopParent(node.id)
+  })()
+
+  const loopSuggestions = loopContext ? [
+    { label: `${loopContext.item_variable || 'item'}`, value: loopContext.item_variable || 'item', example: 'Item atual do loop' },
+    { label: `${loopContext.item_variable || 'item'}.campo`, value: `${loopContext.item_variable || 'item'}.campo`, example: 'Campo do item' },
+    { label: 'loop.index', value: 'loop.index', example: 'Índice (0, 1, 2...)' },
+    { label: 'loop.key', value: 'loop.key', example: 'Chave (se dict)' },
+    { label: 'loop.total', value: 'loop.total', example: 'Total de itens' },
+    { label: 'loop.first', value: 'loop.first', example: 'true se primeiro' },
+    { label: 'loop.last', value: 'loop.last', example: 'true se último' },
+  ] : []
 
   // Estados para departamentos (nó transfer)
   const [departments, setDepartments] = useState([])
@@ -55,6 +134,64 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
   const [bodyExpanded, setBodyExpanded] = useState(false)
 
   // Detecta se o nó anterior é uma chamada API
+  // Encontra nó api_request ancestral com response_example
+  const getAncestorApiExample = () => {
+    const visited = new Set()
+    const findApi = (nodeId) => {
+      if (visited.has(nodeId)) return null
+      visited.add(nodeId)
+      for (const edge of edges) {
+        if (edge.target === nodeId) {
+          const sourceNode = nodes.find(n => n.id === edge.source)
+          if (sourceNode) {
+            if (sourceNode.type === 'api_request' && sourceNode.data.response_example) {
+              return sourceNode.data
+            }
+            const result = findApi(sourceNode.id)
+            if (result) return result
+          }
+        }
+      }
+      return null
+    }
+    return findApi(node.id)
+  }
+
+  const ancestorApiData = getAncestorApiExample()
+  const apiExampleSuggestions = (() => {
+    if (!ancestorApiData || !ancestorApiData._extracted_paths) return []
+
+    // Se dentro de um loop, converte caminhos da API para item.campo
+    if (loopContext && loopContext.source_variable) {
+      const sourceVar = loopContext.source_variable
+      const itemVar = loopContext.item_variable || 'item'
+      const itemSuggestions = []
+      for (const p of ancestorApiData._extracted_paths) {
+        // Campos filhos do array selecionado → item.campo
+        if (p.path.startsWith(sourceVar + '.') && !p.isArray) {
+          const fieldName = p.path.replace(sourceVar + '.', '')
+          itemSuggestions.push({
+            label: `${itemVar}.${fieldName}`,
+            value: `${itemVar}.${fieldName}`,
+            example: p.example !== undefined ? String(p.example) : '',
+          })
+        }
+      }
+      // Retorna apenas campos do item (os de loop já estão em loopSuggestions)
+      return itemSuggestions
+    }
+
+    // Sem loop: mostra caminhos completos da API
+    return ancestorApiData._extracted_paths.map(p => ({
+      label: p.path,
+      value: p.path,
+      example: p.isArray ? '📋 array' : (p.example !== undefined ? String(p.example) : ''),
+    }))
+  })()
+
+  // Combina sugestões de loop + API example
+  const allExtraSuggestions = [...loopSuggestions, ...apiExampleSuggestions]
+
   const getPreviousApiNode = () => {
     // Encontra edges que conectam PARA este nó
     const incomingEdges = edges.filter(edge => edge.target === node.id)
@@ -417,6 +554,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
             <div className="form-group">
               <label>Mensagem</label>
               <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                 value={data.message || ''}
                 onChange={(e) => updateData('message', e.target.value)}
                 placeholder="Digite a mensagem que será enviada"
@@ -447,6 +585,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
             <div className="form-group">
               <label>Header (opcional)</label>
               <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                 value={data.header || ''}
                 onChange={(e) => updateData('header', e.target.value)}
                 placeholder="Título do cartão de botões (digite $ para autocompletar)"
@@ -456,6 +595,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
             <div className="form-group">
               <label>Mensagem</label>
               <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                 value={data.message || ''}
                 onChange={(e) => updateData('message', e.target.value)}
                 placeholder="Digite a mensagem acima dos botões (digite $ para autocompletar)"
@@ -465,6 +605,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
             <div className="form-group">
               <label>Footer (opcional)</label>
               <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                 value={data.footer || ''}
                 onChange={(e) => updateData('footer', e.target.value)}
                 placeholder="Rodapé do cartão de botões (digite $ para autocompletar)"
@@ -1126,6 +1267,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
             <div className="form-group">
               <label>URL do Endpoint</label>
               <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                 value={data.url || ''}
                 onChange={(e) => updateData('url', e.target.value)}
                 placeholder="https://api.exemplo.com/endpoint"
@@ -1164,6 +1306,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
               <div className="form-group" style={{ marginLeft: '1rem', padding: '0.8rem', borderLeft: '3px solid #7c3aed', backgroundColor: 'var(--card-bg, #1a1a2e)' }}>
                 <label>Token</label>
                 <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                   value={(data.auth_config || {}).token || ''}
                   onChange={(e) => updateData('auth_config', { ...data.auth_config, token: e.target.value })}
                   placeholder="${{secret.API_TOKEN}}"
@@ -1178,6 +1321,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 <div className="form-group">
                   <label>Usuário</label>
                   <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                     value={(data.auth_config || {}).username || ''}
                     onChange={(e) => updateData('auth_config', { ...data.auth_config, username: e.target.value })}
                     placeholder="${{secret.API_USER}}"
@@ -1187,6 +1331,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 <div className="form-group">
                   <label>Senha</label>
                   <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                     value={(data.auth_config || {}).password || ''}
                     onChange={(e) => updateData('auth_config', { ...data.auth_config, password: e.target.value })}
                     placeholder="${{secret.API_PASSWORD}}"
@@ -1210,6 +1355,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 <div className="form-group">
                   <label>Valor</label>
                   <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                     value={(data.auth_config || {}).key_value || ''}
                     onChange={(e) => updateData('auth_config', { ...data.auth_config, key_value: e.target.value })}
                     placeholder="${{secret.API_KEY}}"
@@ -1238,6 +1384,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 <div className="form-group">
                   <label>URL de Login</label>
                   <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                     value={(data.auth_config || {}).login_url || ''}
                     onChange={(e) => updateData('auth_config', { ...data.auth_config, login_url: e.target.value })}
                     placeholder="https://api.exemplo.com/auth/login"
@@ -1258,6 +1405,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 <div className="form-group">
                   <label>Body de Login (JSON)</label>
                   <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                     value={(data.auth_config || {}).login_body || ''}
                     onChange={(e) => updateData('auth_config', { ...data.auth_config, login_body: e.target.value })}
                     placeholder={'{\n  "username": "${{secret.USER}}",\n  "password": "${{secret.PASS}}"\n}'}
@@ -1392,6 +1540,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                   <div>
                     <label style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>Value</label>
                     <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                       value={param.value || ''}
                       onChange={(e) => {
                         const params = [...(data.query_params || [])]
@@ -1501,6 +1650,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                   <div>
                     <label style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>Value</label>
                     <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                       value={header.value || ''}
                       onChange={(e) => {
                         const headers = [...(data.headers || [])]
@@ -1548,6 +1698,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                   {bodyExpanded && (
                     <>
                       <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                         value={data.body || ''}
                         onChange={(e) => updateData('body', e.target.value)}
                         placeholder={'{\n  "campo": "valor",\n  "dinamico": "${​{contexto.campo}}"\n}'}
@@ -1582,7 +1733,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
             <div
               style={{
                 padding: '0.75rem',
-                backgroundColor: '#e3f2fd',
+                backgroundColor: 'var(--card-bg, #e3f2fd)',
                 borderRadius: '4px',
                 marginTop: '1rem',
                 fontSize: '0.8rem',
@@ -1590,11 +1741,171 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
             >
               <strong>💡 Como usar:</strong>
               <br />
-              • A resposta completa será salva em <code style={{background: '#fff', padding: '0.1rem 0.3rem'}}>{data.context_key || 'api_response'}</code>
+              • A resposta completa será salva em <code style={{background: 'var(--input-bg, #fff)', padding: '0.1rem 0.3rem'}}>{data.context_key || 'api_response'}</code>
               <br />
               • Use $&#123;&#123;{data.context_key || 'api_response'}.campo&#125;&#125; para acessar campos da resposta
               <br />
               • Variáveis do contexto podem ser usadas na URL, query params, headers e body
+            </div>
+
+            {/* Exemplo de Resposta */}
+            <div className="form-group" style={{ marginTop: '1rem' }}>
+              <div
+                onClick={() => setShowResponseExample(!showResponseExample)}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  padding: '0.5rem',
+                  backgroundColor: 'var(--card-bg, #f5f5f5)',
+                  borderRadius: '4px',
+                  border: '1px solid var(--border-color, #ddd)',
+                }}
+              >
+                <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                  📋 Exemplo de Resposta (JSON)
+                  {data.response_example && <span style={{ color: '#4CAF50', marginLeft: '0.5rem', fontSize: '0.75rem' }}>✓ configurado</span>}
+                </span>
+                <span style={{ transform: showResponseExample ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
+              </div>
+              {showResponseExample && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.3rem', marginBottom: '0.3rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const raw = data.response_example || ''
+                        // Tenta corrigir JSON comum
+                        let fixed = raw
+                          // Remove quebras de linha dentro de strings (multiline)
+                          .replace(/"([^"]*)"/gs, (match) => match.replace(/\n/g, ' '))
+                          // Adiciona aspas em chaves sem aspas
+                          .replace(/([{[,]\s*)(\w+)\s*:/g, '$1"$2":')
+                          // Remove vírgulas antes de } ou ]
+                          .replace(/,\s*([}\]])/g, '$1')
+                        try {
+                          const parsed = JSON.parse(fixed)
+                          const pretty = JSON.stringify(parsed, null, 2)
+                          updateData('response_example', pretty)
+                          const paths = extractJsonPaths(parsed, data.context_key || 'api_response')
+                          updateData('_extracted_paths', paths)
+                        } catch {
+                          // Tenta eval como último recurso (para JSON com aspas simples, etc)
+                          try {
+                            // eslint-disable-next-line no-eval
+                            const parsed = eval('(' + raw + ')')
+                            const pretty = JSON.stringify(parsed, null, 2)
+                            updateData('response_example', pretty)
+                            const paths = extractJsonPaths(parsed, data.context_key || 'api_response')
+                            updateData('_extracted_paths', paths)
+                          } catch {
+                            alert('Não foi possível corrigir o JSON. Verifique a formatação.')
+                          }
+                        }
+                      }}
+                      style={{
+                        padding: '0.25rem 0.6rem',
+                        fontSize: '0.75rem',
+                        backgroundColor: 'var(--accent, #7c3aed)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ✨ Formatar / Corrigir JSON
+                    </button>
+                    {data.response_example && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateData('response_example', '')
+                          updateData('_extracted_paths', null)
+                        }}
+                        style={{
+                          padding: '0.25rem 0.6rem',
+                          fontSize: '0.75rem',
+                          backgroundColor: 'transparent',
+                          color: '#F44336',
+                          border: '1px solid #F44336',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        🗑️ Limpar
+                      </button>
+                    )}
+                  </div>
+                  <textarea
+                    value={data.response_example || ''}
+                    onChange={(e) => {
+                      updateData('response_example', e.target.value)
+                      // Tenta parsear e extrair campos
+                      try {
+                        const parsed = JSON.parse(e.target.value)
+                        const paths = extractJsonPaths(parsed, data.context_key || 'api_response')
+                        updateData('_extracted_paths', paths)
+                      } catch {
+                        // JSON inválido - não atualiza paths (mantém os anteriores)
+                      }
+                    }}
+                    placeholder={'Cole aqui um exemplo da resposta da API.\nPode ser JSON com ou sem aspas nas chaves.\nClique "Formatar" para corrigir automaticamente.'}
+                    rows={8}
+                    style={{
+                      width: '100%',
+                      fontFamily: 'monospace',
+                      fontSize: '0.8rem',
+                      backgroundColor: 'var(--input-bg, #1e1e2e)',
+                      color: 'var(--text-primary, #e0e0e0)',
+                      border: `1px solid ${data.response_example && !data._extracted_paths ? '#F44336' : 'var(--border-color, #333)'}`,
+                      borderRadius: '4px',
+                      padding: '0.5rem',
+                      resize: 'vertical',
+                    }}
+                  />
+                  <small style={{ color: data.response_example && !data._extracted_paths ? '#F44336' : 'var(--text-secondary, #888)' }}>
+                    {data.response_example && !data._extracted_paths
+                      ? '⚠️ JSON inválido — clique "Formatar / Corrigir" para tentar corrigir automaticamente'
+                      : 'Cole um exemplo da resposta JSON. Os campos serão sugeridos nos nós seguintes.'
+                    }
+                  </small>
+
+                  {/* Preview dos caminhos extraídos */}
+                  {data._extracted_paths && data._extracted_paths.length > 0 && (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      padding: '0.5rem',
+                      backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                      border: '1px solid rgba(76, 175, 80, 0.3)',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem',
+                      maxHeight: '150px',
+                      overflowY: 'auto',
+                    }}>
+                      <strong style={{ color: '#4CAF50' }}>Campos detectados ({data._extracted_paths.length}):</strong>
+                      <div style={{ marginTop: '0.3rem', fontFamily: 'monospace', lineHeight: 1.6 }}>
+                        {data._extracted_paths.slice(0, 20).map((p, i) => (
+                          <div key={i}>
+                            <code style={{ color: p.isArray ? '#f59e0b' : 'var(--text-primary, #e0e0e0)' }}>
+                              {'${{' + p.path + '}}'}
+                            </code>
+                            {p.isArray && <span style={{ color: '#f59e0b', marginLeft: '0.3rem' }}>📋 array</span>}
+                            {p.example !== undefined && (
+                              <span style={{ color: 'var(--text-secondary, #888)', marginLeft: '0.5rem' }}>
+                                = {typeof p.example === 'string' ? `"${p.example}"` : String(p.example)}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                        {data._extracted_paths.length > 20 && (
+                          <div style={{ color: 'var(--text-secondary, #888)' }}>... e mais {data._extracted_paths.length - 20} campos</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
           </>
@@ -1855,6 +2166,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                       Chave no Contexto
                     </label>
                     <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                       value={mapping.key || ''}
                       onChange={(e) => {
                         const mappings = [...(data.mappings || [])]
@@ -1891,6 +2203,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                       Valor
                     </label>
                     <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                       value={mapping.value || ''}
                       onChange={(e) => {
                         const mappings = [...(data.mappings || [])]
@@ -2234,6 +2547,476 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 onChange={(e) => updateData('label', e.target.value)}
                 placeholder="Pular para..."
               />
+            </div>
+          </>
+        )
+
+      case 'loop':
+        return (
+          <>
+            <div className="form-group">
+              <label>Rótulo</label>
+              <input
+                type="text"
+                value={data.label || ''}
+                onChange={(e) => updateData('label', e.target.value)}
+                placeholder="Nome do loop"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Variável Fonte (lista ou dicionário)</label>
+              <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
+                value={data.source_variable || ''}
+                onChange={(e) => updateData('source_variable', e.target.value.replace(/\$\{\{/g, '').replace(/\}\}/g, '').trim())}
+                placeholder="api_response.data.pedidos"
+                rows={1}
+              />
+              <FieldHelper
+                title="Qual lista iterar"
+                description="Caminho no contexto para a lista ou dicionário. O loop vai executar os nós conectados na saída 'Corpo' para cada item."
+                example="api_response.data.items"
+                onUseExample={(ex) => updateData('source_variable', ex)}
+              />
+              {/* Sugestões de arrays da API ancestral */}
+              {ancestorApiData && ancestorApiData._extracted_paths && (
+                <div style={{
+                  marginTop: '0.5rem',
+                  padding: '0.5rem',
+                  backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                  border: '1px solid rgba(245, 158, 11, 0.2)',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem',
+                }}>
+                  <strong style={{ color: '#f59e0b' }}>📋 Arrays detectados na API:</strong>
+                  <div style={{ marginTop: '0.3rem', display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                    {ancestorApiData._extracted_paths
+                      .filter(p => p.isArray)
+                      .map((p, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => updateData('source_variable', p.path)}
+                          style={{
+                            padding: '0.25rem 0.5rem',
+                            fontSize: '0.75rem',
+                            fontFamily: 'monospace',
+                            backgroundColor: data.source_variable === p.path ? '#f59e0b' : 'var(--input-bg, #2a2a3e)',
+                            color: data.source_variable === p.path ? '#000' : 'var(--text-primary, #e0e0e0)',
+                            border: '1px solid var(--border-color, #444)',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {p.path} {p.example}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label>Nome da Variável de Item</label>
+              <input
+                type="text"
+                value={data.item_variable || 'item'}
+                onChange={(e) => updateData('item_variable', e.target.value)}
+                placeholder="item"
+              />
+              <small style={{ color: 'var(--text-secondary, #888)' }}>
+                Use <code>{'${{' + (data.item_variable || 'item') + '.campo}}'}</code> dentro do corpo do loop para acessar cada item.
+              </small>
+            </div>
+
+            <div className="form-group">
+              <label>Máximo de Iterações</label>
+              <input
+                type="number"
+                value={data.max_iterations || 50}
+                onChange={(e) => updateData('max_iterations', parseInt(e.target.value) || 50)}
+                min={1}
+                max={100}
+              />
+              <small style={{ color: 'var(--text-secondary, #888)' }}>
+                Proteção contra loops infinitos. Máximo: 100.
+              </small>
+            </div>
+
+            <div style={{
+              padding: '0.8rem',
+              backgroundColor: 'var(--card-bg, rgba(100,100,255,0.05))',
+              borderRadius: '8px',
+              marginTop: '0.5rem',
+              border: '1px solid var(--border-color, #333)',
+            }}>
+              <strong style={{ fontSize: '0.85rem', color: '#f59e0b' }}>🔄 Variáveis disponíveis no corpo:</strong>
+              <div style={{ fontSize: '0.8rem', marginTop: '0.5rem', fontFamily: 'monospace', lineHeight: 1.8 }}>
+                <div><code>{'${{' + (data.item_variable || 'item') + '}}'}</code> — item atual</div>
+                {/* Campos do item detectados da API */}
+                {(() => {
+                  if (!ancestorApiData || !ancestorApiData._extracted_paths || !data.source_variable) return null
+                  const sourceVar = data.source_variable
+                  const itemVar = data.item_variable || 'item'
+                  // Encontra campos filhos do array selecionado
+                  const childFields = ancestorApiData._extracted_paths.filter(p => {
+                    return p.path.startsWith(sourceVar + '.') && !p.isArray
+                  })
+                  if (childFields.length === 0) return null
+                  return childFields.map((f, i) => {
+                    const fieldName = f.path.replace(sourceVar + '.', '')
+                    return (
+                      <div key={i} style={{ color: '#4CAF50' }}>
+                        <code>{'${{' + itemVar + '.' + fieldName + '}}'}</code>
+                        {f.example !== undefined && (
+                          <span style={{ color: 'var(--text-secondary, #888)', fontFamily: 'sans-serif' }}>
+                            {' '}— ex: {typeof f.example === 'string' ? `"${f.example.substring(0, 30)}"` : String(f.example)}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })
+                })()}
+                {(!ancestorApiData || !ancestorApiData._extracted_paths || !data.source_variable) && (
+                  <div><code>{'${{' + (data.item_variable || 'item') + '.campo}}'}</code> — campo do item</div>
+                )}
+                <div style={{ marginTop: '0.3rem', borderTop: '1px solid var(--border-color, #444)', paddingTop: '0.3rem' }}>
+                  <div><code>{'${{loop.index}}'}</code> — índice (0, 1, 2...)</div>
+                  <div><code>{'${{loop.key}}'}</code> — chave (se for dict)</div>
+                  <div><code>{'${{loop.total}}'}</code> — total de itens</div>
+                  <div><code>{'${{loop.first}}'}</code> — true se primeiro</div>
+                  <div><code>{'${{loop.last}}'}</code> — true se último</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{
+              padding: '0.8rem',
+              backgroundColor: 'var(--card-bg, rgba(100,100,255,0.05))',
+              borderRadius: '8px',
+              marginTop: '0.5rem',
+              border: '1px solid var(--border-color, #333)',
+            }}>
+              <strong style={{ fontSize: '0.85rem' }}>💡 Como conectar:</strong>
+              <div style={{ fontSize: '0.8rem', marginTop: '0.5rem', lineHeight: 1.6 }}>
+                <div>🟡 <strong>Corpo</strong> (saída lateral): conecte os nós que executam a cada iteração</div>
+                <div>🟢 <strong>Fim</strong> (saída inferior): conecte o que vem depois do loop</div>
+              </div>
+            </div>
+          </>
+        )
+
+      case 'expression':
+        return (
+          <>
+            <div className="form-group">
+              <label>Rótulo</label>
+              <input
+                type="text"
+                value={data.label || ''}
+                onChange={(e) => updateData('label', e.target.value)}
+                placeholder="Nome da expressão"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Modo</label>
+              <select
+                value={data.mode || 'set'}
+                onChange={(e) => updateData('mode', e.target.value)}
+                style={{ backgroundColor: 'var(--input-bg, #1e1e2e)', color: 'var(--text-primary, #e0e0e0)', borderColor: 'var(--border-color, #333)' }}
+              >
+                <option value="set">✏️ Definir (substitui o valor)</option>
+                <option value="append">➕ Acumular (concatena ao valor existente)</option>
+              </select>
+              <small style={{ color: 'var(--text-secondary, #888)' }}>
+                {data.mode === 'append'
+                  ? 'Ideal dentro de loops: cada iteração adiciona ao resultado.'
+                  : 'Substitui o valor da variável a cada execução.'
+                }
+              </small>
+            </div>
+
+            {data.mode === 'append' && (
+              <div className="form-group">
+                <label>Separador</label>
+                <input
+                  type="text"
+                  value={data.separator || ''}
+                  onChange={(e) => updateData('separator', e.target.value)}
+                  placeholder="Ex: \n (nova linha), , (vírgula)"
+                />
+                <small style={{ color: 'var(--text-secondary, #888)' }}>
+                  Texto inserido entre cada concatenação. Use \n para nova linha.
+                </small>
+              </div>
+            )}
+
+            <div className="form-group">
+              <label>Template</label>
+              <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
+                value={data.template || ''}
+                onChange={(e) => updateData('template', e.target.value)}
+                placeholder={'📦 Pedido #${{item.id}} - ${{item.title}}'}
+                rows={3}
+              />
+              <FieldHelper
+                title="Como montar o template"
+                description="Use variáveis do contexto para montar o texto. Dentro de um loop, use as variáveis do item."
+                example={'📦 #${{item.id}} - ${{item.title}} (R$ ${{item.valor}})'}
+                onUseExample={(ex) => updateData('template', ex)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Salvar em (Context Key)</label>
+              <input
+                type="text"
+                value={data.context_key || 'resultado'}
+                onChange={(e) => updateData('context_key', e.target.value)}
+                placeholder="resultado"
+                style={{ fontFamily: 'monospace' }}
+              />
+              <small style={{ color: 'var(--text-secondary, #888)' }}>
+                Use <code>{'${{' + (data.context_key || 'resultado') + '}}'}</code> nos nós seguintes para acessar o valor.
+              </small>
+            </div>
+
+            {/* Operações de Transformação */}
+            <div className="form-group" style={{ marginTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <label style={{ margin: 0 }}>🔧 Operações de Transformação</label>
+                <button
+                  type="button"
+                  onClick={() => updateData('operations', [...(data.operations || []), { type: '' }])}
+                  style={{
+                    padding: '0.3rem 0.6rem',
+                    fontSize: '0.8rem',
+                    backgroundColor: 'var(--accent, #7c3aed)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  + Adicionar
+                </button>
+              </div>
+
+              {(data.operations || []).map((op, index) => (
+                <div key={index} style={{
+                  padding: '0.6rem',
+                  marginBottom: '0.5rem',
+                  backgroundColor: 'var(--card-bg, #1a1a2e)',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color, #333)',
+                }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <select
+                      value={op.type || ''}
+                      onChange={(e) => {
+                        const ops = [...(data.operations || [])]
+                        ops[index] = { ...ops[index], type: e.target.value }
+                        updateData('operations', ops)
+                      }}
+                      style={{ flex: 1, backgroundColor: 'var(--input-bg, #1e1e2e)', color: 'var(--text-primary, #e0e0e0)', borderColor: 'var(--border-color, #333)' }}
+                    >
+                      <option value="">Selecione...</option>
+                      <optgroup label="Texto">
+                        <option value="uppercase">MAIÚSCULAS</option>
+                        <option value="lowercase">minúsculas</option>
+                        <option value="trim">Remover espaços</option>
+                        <option value="replace">Substituir texto</option>
+                        <option value="prefix">Adicionar prefixo</option>
+                        <option value="suffix">Adicionar sufixo</option>
+                        <option value="substring">Recortar texto</option>
+                      </optgroup>
+                      <optgroup label="Matemática">
+                        <option value="math">Operação matemática</option>
+                        <option value="format_number">Formatar número</option>
+                        <option value="format_currency">Formatar moeda</option>
+                      </optgroup>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ops = [...(data.operations || [])]
+                        ops.splice(index, 1)
+                        updateData('operations', ops)
+                      }}
+                      style={{
+                        padding: '0.2rem 0.5rem',
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#F44336',
+                        cursor: 'pointer',
+                        fontSize: '1.1rem',
+                      }}
+                    >
+                      🗑️
+                    </button>
+                  </div>
+
+                  {/* Campos específicos por tipo de operação */}
+                  {op.type === 'replace' && (
+                    <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.3rem' }}>
+                      <input
+                        type="text"
+                        placeholder="Buscar"
+                        value={op.find || ''}
+                        onChange={(e) => {
+                          const ops = [...(data.operations || [])]
+                          ops[index] = { ...ops[index], find: e.target.value }
+                          updateData('operations', ops)
+                        }}
+                        style={{ flex: 1 }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Substituir por"
+                        value={op.value || ''}
+                        onChange={(e) => {
+                          const ops = [...(data.operations || [])]
+                          ops[index] = { ...ops[index], value: e.target.value }
+                          updateData('operations', ops)
+                        }}
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+                  )}
+
+                  {op.type === 'math' && (
+                    <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                      <select
+                        value={op.operator || '+'}
+                        onChange={(e) => {
+                          const ops = [...(data.operations || [])]
+                          ops[index] = { ...ops[index], operator: e.target.value }
+                          updateData('operations', ops)
+                        }}
+                        style={{ width: '80px', backgroundColor: 'var(--input-bg, #1e1e2e)', color: 'var(--text-primary, #e0e0e0)', borderColor: 'var(--border-color, #333)' }}
+                      >
+                        <option value="+">+ Somar</option>
+                        <option value="-">- Subtrair</option>
+                        <option value="*">× Multiplicar</option>
+                        <option value="/">÷ Dividir</option>
+                        <option value="%">% Módulo</option>
+                        <option value="round">Arredondar</option>
+                      </select>
+                      <input
+                        type="text"
+                        placeholder="Valor"
+                        value={op.value || ''}
+                        onChange={(e) => {
+                          const ops = [...(data.operations || [])]
+                          ops[index] = { ...ops[index], value: e.target.value }
+                          updateData('operations', ops)
+                        }}
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+                  )}
+
+                  {op.type === 'substring' && (
+                    <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.3rem' }}>
+                      <input
+                        type="number"
+                        placeholder="Início"
+                        value={op.start || ''}
+                        onChange={(e) => {
+                          const ops = [...(data.operations || [])]
+                          ops[index] = { ...ops[index], start: e.target.value }
+                          updateData('operations', ops)
+                        }}
+                        style={{ flex: 1 }}
+                      />
+                      <input
+                        type="number"
+                        placeholder="Fim (opcional)"
+                        value={op.end || ''}
+                        onChange={(e) => {
+                          const ops = [...(data.operations || [])]
+                          ops[index] = { ...ops[index], end: e.target.value }
+                          updateData('operations', ops)
+                        }}
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+                  )}
+
+                  {(op.type === 'prefix' || op.type === 'suffix') && (
+                    <div style={{ marginTop: '0.4rem' }}>
+                      <input
+                        type="text"
+                        placeholder="Texto"
+                        value={op.value || ''}
+                        onChange={(e) => {
+                          const ops = [...(data.operations || [])]
+                          ops[index] = { ...ops[index], value: e.target.value }
+                          updateData('operations', ops)
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {op.type === 'format_number' && (
+                    <div style={{ marginTop: '0.4rem' }}>
+                      <input
+                        type="number"
+                        placeholder="Casas decimais (padrão: 2)"
+                        value={op.value || ''}
+                        onChange={(e) => {
+                          const ops = [...(data.operations || [])]
+                          ops[index] = { ...ops[index], value: e.target.value }
+                          updateData('operations', ops)
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {op.type === 'format_currency' && (
+                    <div style={{ marginTop: '0.4rem' }}>
+                      <input
+                        type="text"
+                        placeholder="Símbolo (padrão: R$)"
+                        value={op.value || ''}
+                        onChange={(e) => {
+                          const ops = [...(data.operations || [])]
+                          ops[index] = { ...ops[index], value: e.target.value }
+                          updateData('operations', ops)
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {(!data.operations || data.operations.length === 0) && (
+                <small style={{ color: 'var(--text-secondary, #888)' }}>
+                  Nenhuma operação. O template será salvo diretamente.
+                </small>
+              )}
+            </div>
+
+            <div style={{
+              padding: '0.8rem',
+              backgroundColor: 'var(--card-bg, rgba(100,100,255,0.05))',
+              borderRadius: '8px',
+              marginTop: '0.5rem',
+              border: '1px solid var(--border-color, #333)',
+            }}>
+              <strong style={{ fontSize: '0.85rem' }}>💡 Exemplo com Loop:</strong>
+              <div style={{ fontSize: '0.8rem', marginTop: '0.5rem', lineHeight: 1.6, fontFamily: 'monospace' }}>
+                <div>Modo: <strong>Acumular</strong></div>
+                <div>Template: <code>{'📦 #${{item.id}} - ${{item.title}}'}</code></div>
+                <div>Separador: <code>\n</code></div>
+                <div>Key: <code>lista</code></div>
+                <div style={{ marginTop: '0.3rem', color: '#4CAF50' }}>
+                  → Resultado: cada iteração adiciona uma linha
+                </div>
+              </div>
             </div>
           </>
         )
@@ -3934,6 +4717,7 @@ Regras:
             <div className="form-group">
               <label>URL do Arquivo</label>
               <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                 value={data.url || ''}
                 onChange={(e) => updateData('url', e.target.value)}
                 placeholder="https://exemplo.com/arquivo.pdf"
@@ -3959,6 +4743,7 @@ Regras:
             <div className="form-group">
               <label>Legenda (opcional)</label>
               <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
                 value={data.caption || ''}
                 onChange={(e) => updateData('caption', e.target.value)}
                 placeholder="Texto enviado junto com a mídia"
@@ -4011,6 +4796,26 @@ Regras:
               <h2 style={{ margin: 0 }}>Editar Nó: {node.type}</h2>
               <p style={{ color: '#666', margin: '0.25rem 0 0 0', fontSize: '0.85rem' }}>ID: {node.id}</p>
             </div>
+
+            {/* Banner de contexto de loop */}
+            {loopContext && (
+              <div style={{
+                width: '100%',
+                padding: '0.6rem 0.8rem',
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
+                marginTop: '-0.5rem',
+              }}>
+                <strong style={{ color: '#f59e0b' }}>🔄 Dentro de um Loop</strong>
+                <span style={{ marginLeft: '0.5rem', color: 'var(--text-secondary, #888)' }}>
+                  Variáveis: <code>{'${{' + (loopContext.item_variable || 'item') + '}}'}</code>,
+                  <code>{'${{loop.index}}'}</code>,
+                  <code>{'${{loop.key}}'}</code>
+                </span>
+              </div>
+            )}
 
             {/* Botão Play para testar API Request */}
             {node.type === 'api_request' && (
