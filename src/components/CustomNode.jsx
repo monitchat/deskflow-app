@@ -616,10 +616,31 @@ function CustomNode({ data, type, selected, id }) {
         )
       case 'input':
         return (
-          <div className="node-content">
-            {data.label || 'Input'}
-            <br />
-            <small>Tipo: {data.input_type || 'text'}</small>
+          <div className="node-content" style={{ minWidth: '140px' }}>
+            <div style={{ fontWeight: 600, marginBottom: '0.3rem' }}>
+              {data.label || 'Input'}
+            </div>
+            {data.message && (
+              <div style={{
+                fontSize: '0.75rem',
+                color: 'var(--node-content-dim)',
+                fontStyle: 'italic',
+                marginBottom: '0.3rem',
+                lineHeight: 1.3,
+                maxWidth: '180px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+              }}>
+                "{data.message}"
+              </div>
+            )}
+            <small style={{ color: 'var(--node-content-dim)' }}>
+              Tipo: {data.input_type || 'text'}
+              {data.context_key && ` → ${data.context_key}`}
+            </small>
           </div>
         )
       default:

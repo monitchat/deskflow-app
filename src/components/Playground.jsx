@@ -73,7 +73,7 @@ function Playground({ flowId, onClose }) {
     if (text.trim() || buttonId) {
       setMessages(prev => [...prev, {
         type: 'user',
-        text: buttonId || text,
+        text: text || buttonId,
         timestamp: new Date()
       }])
     }
@@ -262,7 +262,7 @@ function Playground({ flowId, onClose }) {
             {buttons.map((button, idx) => (
               <button
                 key={idx}
-                onClick={() => sendMessage('', selectedSession, button.id)}
+                onClick={() => sendMessage(button.title, selectedSession, button.id)}
                 disabled={loading}
                 className="pg-btn pg-btn-action"
               >
@@ -286,7 +286,7 @@ function Playground({ flowId, onClose }) {
                 {section.rows && section.rows.map((row, rIdx) => (
                   <button
                     key={rIdx}
-                    onClick={() => sendMessage('', selectedSession, row.id)}
+                    onClick={() => sendMessage(row.title, selectedSession, row.id)}
                     disabled={loading}
                     className="pg-btn pg-btn-list"
                   >

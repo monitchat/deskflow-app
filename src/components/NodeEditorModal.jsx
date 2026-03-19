@@ -3664,6 +3664,20 @@ Regras:
         return (
           <>
             <div className="form-group">
+              <label>Mensagem (pergunta para o usuário)</label>
+              <textarea
+                value={data.message || ''}
+                onChange={(e) => updateData('message', e.target.value)}
+                placeholder="Ex: Por favor, digite seu CPF:"
+                rows={2}
+              />
+              <FieldHelper
+                description="Mensagem enviada ao usuário antes de esperar a resposta. Ex: 'Qual é o seu CPF?', 'Digite o número do pedido:'"
+                example="Por favor, informe seu CPF para que possamos localizar seu cadastro:"
+                onUseExample={(ex) => updateData('message', ex)}
+              />
+            </div>
+            <div className="form-group">
               <label>Tipo de Input</label>
               <select
                 value={data.input_type || 'text'}
