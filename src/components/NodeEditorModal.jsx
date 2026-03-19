@@ -1139,7 +1139,166 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
               />
             </div>
 
-            <hr style={{ margin: '1rem 0', borderColor: '#ddd' }} />
+            {/* === Autenticação === */}
+            <hr style={{ margin: '1rem 0', borderColor: 'var(--border-color, #333)' }} />
+
+            <div className="form-group">
+              <label>🔐 Autenticação</label>
+              <select
+                value={data.auth_type || 'none'}
+                onChange={(e) => {
+                  updateData('auth_type', e.target.value)
+                  if (!data.auth_config) updateData('auth_config', {})
+                }}
+                style={{ backgroundColor: 'var(--input-bg, #1e1e2e)', color: 'var(--text-primary, #e0e0e0)', borderColor: 'var(--border-color, #333)' }}
+              >
+                <option value="none">Sem autenticação</option>
+                <option value="bearer">Bearer Token</option>
+                <option value="basic">Basic Auth (Usuário/Senha)</option>
+                <option value="api_key">API Key</option>
+                <option value="session">Sessão/Cookie (Login automático)</option>
+              </select>
+            </div>
+
+            {data.auth_type === 'bearer' && (
+              <div className="form-group" style={{ marginLeft: '1rem', padding: '0.8rem', borderLeft: '3px solid #7c3aed', backgroundColor: 'var(--card-bg, #1a1a2e)' }}>
+                <label>Token</label>
+                <AutocompleteTextarea
+                  value={(data.auth_config || {}).token || ''}
+                  onChange={(e) => updateData('auth_config', { ...data.auth_config, token: e.target.value })}
+                  placeholder="${{secret.API_TOKEN}}"
+                  rows={1}
+                />
+                <small style={{ color: 'var(--text-secondary, #888)' }}>Use <code>{'${{secret.NOME}}'}</code> para referenciar uma credencial</small>
+              </div>
+            )}
+
+            {data.auth_type === 'basic' && (
+              <div style={{ marginLeft: '1rem', padding: '0.8rem', borderLeft: '3px solid #2563eb', backgroundColor: 'var(--card-bg, #1a1a2e)' }}>
+                <div className="form-group">
+                  <label>Usuário</label>
+                  <AutocompleteTextarea
+                    value={(data.auth_config || {}).username || ''}
+                    onChange={(e) => updateData('auth_config', { ...data.auth_config, username: e.target.value })}
+                    placeholder="${{secret.API_USER}}"
+                    rows={1}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Senha</label>
+                  <AutocompleteTextarea
+                    value={(data.auth_config || {}).password || ''}
+                    onChange={(e) => updateData('auth_config', { ...data.auth_config, password: e.target.value })}
+                    placeholder="${{secret.API_PASSWORD}}"
+                    rows={1}
+                  />
+                </div>
+              </div>
+            )}
+
+            {data.auth_type === 'api_key' && (
+              <div style={{ marginLeft: '1rem', padding: '0.8rem', borderLeft: '3px solid #059669', backgroundColor: 'var(--card-bg, #1a1a2e)' }}>
+                <div className="form-group">
+                  <label>Nome da Chave</label>
+                  <input
+                    type="text"
+                    value={(data.auth_config || {}).key_name || 'X-API-Key'}
+                    onChange={(e) => updateData('auth_config', { ...data.auth_config, key_name: e.target.value })}
+                    placeholder="X-API-Key"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Valor</label>
+                  <AutocompleteTextarea
+                    value={(data.auth_config || {}).key_value || ''}
+                    onChange={(e) => updateData('auth_config', { ...data.auth_config, key_value: e.target.value })}
+                    placeholder="${{secret.API_KEY}}"
+                    rows={1}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Enviar como</label>
+                  <select
+                    value={(data.auth_config || {}).add_to || 'header'}
+                    onChange={(e) => updateData('auth_config', { ...data.auth_config, add_to: e.target.value })}
+                    style={{ backgroundColor: 'var(--input-bg, #1e1e2e)', color: 'var(--text-primary, #e0e0e0)', borderColor: 'var(--border-color, #333)' }}
+                  >
+                    <option value="header">Header</option>
+                    <option value="query">Query Parameter</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {data.auth_type === 'session' && (
+              <div style={{ marginLeft: '1rem', padding: '0.8rem', borderLeft: '3px solid #f59e0b', backgroundColor: 'var(--card-bg, #1a1a2e)' }}>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #888)', marginBottom: '0.8rem' }}>
+                  O sistema faz login automaticamente, salva os cookies/token e renova em caso de 401.
+                </p>
+                <div className="form-group">
+                  <label>URL de Login</label>
+                  <AutocompleteTextarea
+                    value={(data.auth_config || {}).login_url || ''}
+                    onChange={(e) => updateData('auth_config', { ...data.auth_config, login_url: e.target.value })}
+                    placeholder="https://api.exemplo.com/auth/login"
+                    rows={1}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Método de Login</label>
+                  <select
+                    value={(data.auth_config || {}).login_method || 'POST'}
+                    onChange={(e) => updateData('auth_config', { ...data.auth_config, login_method: e.target.value })}
+                    style={{ backgroundColor: 'var(--input-bg, #1e1e2e)', color: 'var(--text-primary, #e0e0e0)', borderColor: 'var(--border-color, #333)' }}
+                  >
+                    <option value="POST">POST</option>
+                    <option value="GET">GET</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Body de Login (JSON)</label>
+                  <AutocompleteTextarea
+                    value={(data.auth_config || {}).login_body || ''}
+                    onChange={(e) => updateData('auth_config', { ...data.auth_config, login_body: e.target.value })}
+                    placeholder={'{\n  "username": "${{secret.USER}}",\n  "password": "${{secret.PASS}}"\n}'}
+                    rows={4}
+                  />
+                  <FieldHelper
+                    title="Formato do body de login"
+                    description="JSON com as credenciais. Use secrets para não expor senhas."
+                    example={'{\n  "serviceName": "MobileLoginSP.login",\n  "requestBody": {\n    "NOMUSU": {"$": "${{secret.SANKHYA_USER}}"},\n    "INTERNO": {"$": "${{secret.SANKHYA_PASS}}"},\n    "KEEPCONNECTED": {"$": "S"}\n  }\n}'}
+                    onUseExample={(ex) => updateData('auth_config', { ...data.auth_config, login_body: ex })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Extrair Token do Body (opcional)</label>
+                  <input
+                    type="text"
+                    value={(data.auth_config || {}).token_path || ''}
+                    onChange={(e) => updateData('auth_config', { ...data.auth_config, token_path: e.target.value })}
+                    placeholder="data.access_token"
+                  />
+                  <small style={{ color: 'var(--text-secondary, #888)' }}>
+                    Caminho no JSON de resposta. Ex: <code>data.token</code>, <code>access_token</code>.
+                    Se vazio, usa apenas cookies.
+                  </small>
+                </div>
+                <div className="form-group">
+                  <label>Header do Token (opcional)</label>
+                  <input
+                    type="text"
+                    value={(data.auth_config || {}).token_header || ''}
+                    onChange={(e) => updateData('auth_config', { ...data.auth_config, token_header: e.target.value })}
+                    placeholder="Authorization"
+                  />
+                  <small style={{ color: 'var(--text-secondary, #888)' }}>
+                    Nome do header onde o token extraído será enviado. Padrão: <code>Authorization</code>
+                  </small>
+                </div>
+              </div>
+            )}
+
+            <hr style={{ margin: '1rem 0', borderColor: 'var(--border-color, #333)' }} />
 
             <div className="form-group">
               <div
