@@ -1372,6 +1372,8 @@ function FlowBuilderInner() {
         {showEdgeEditor && selectedEdge && (
           <EdgeEditorModal
             edge={selectedEdge}
+            nodes={nodes}
+            edges={edges}
             onSave={onEdgeUpdate}
             onDelete={() => onDeleteEdge(selectedEdge.id)}
             onClose={() => {

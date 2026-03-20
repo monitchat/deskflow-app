@@ -2784,6 +2784,19 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
               </small>
             </div>
 
+            <div className="form-group">
+              <label>Valor Inicial (opcional)</label>
+              <input
+                type="text"
+                value={data.initial_value || ''}
+                onChange={(e) => updateData('initial_value', e.target.value)}
+                placeholder="0"
+              />
+              <small style={{ color: 'var(--text-secondary, #888)' }}>
+                Usado quando a variável do template ainda não existe no contexto (ex: primeira iteração de um totalizador). Padrão: 0 para operações matemáticas.
+              </small>
+            </div>
+
             {/* Operações de Transformação */}
             <div className="form-group" style={{ marginTop: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
