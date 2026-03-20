@@ -903,9 +903,18 @@ function FlowBuilderInner() {
 
           // Injeta nó Start se não tiver
           const hasStart = flowData.nodes.some((n) => n.type === 'start')
-          const importedNodes = hasStart
-            ? flowData.nodes
-            : [START_NODE, ...flowData.nodes]
+          let importedNodes = flowData.nodes
+          if (!hasStart) {
+            // Posiciona o Start acima do primeiro nó
+            const firstNode = flowData.nodes[0]
+            const startPos = firstNode
+              ? { x: firstNode.position.x, y: firstNode.position.y - 120 }
+              : { x: 250, y: 50 }
+            importedNodes = [{
+              ...START_NODE,
+              position: startPos,
+            }, ...flowData.nodes]
+          }
 
           setNodes(importedNodes)
           setEdges(flowData.edges)
