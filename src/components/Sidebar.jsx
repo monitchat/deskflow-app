@@ -162,25 +162,37 @@ function Sidebar({ sidebarPinned, onTogglePin, nodes = [] }) {
           Arraste os componentes para o canvas
         </p>
 
-        {/* Mostrar Start se não existe no flow */}
-        {!hasStartNode && (
-          <div
-            className="node-type"
-            onDragStart={(event) => onDragStart(event, 'start')}
-            draggable
-            style={{ border: '1px dashed var(--accent)', borderRadius: '8px' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <span className="node-type-icon">{'▶️'}</span>
-              <div>
-                <div style={{ fontWeight: 600, color: 'var(--accent)', fontSize: '0.85rem' }}>Início (Start)</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--sidebar-item-desc)' }}>
-                  Ponto de entrada do fluxo (obrigatório)
-                </div>
+        {/* Nó Start — arrastável se não existe, desabilitado se já existe */}
+        <div
+          className="node-type"
+          onDragStart={(event) => {
+            if (hasStartNode) {
+              event.preventDefault()
+              return
+            }
+            onDragStart(event, 'start')
+          }}
+          draggable={!hasStartNode}
+          style={{
+            border: hasStartNode ? '1px solid var(--border)' : '1px dashed var(--accent)',
+            borderRadius: '8px',
+            opacity: hasStartNode ? 0.4 : 1,
+            cursor: hasStartNode ? 'not-allowed' : 'grab',
+          }}
+          title={hasStartNode ? 'Já existe um nó Início neste fluxo' : 'Arraste para o canvas'}
+        >
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <span className="node-type-icon">{'▶️'}</span>
+            <div>
+              <div style={{ fontWeight: 600, color: hasStartNode ? 'var(--text-dim)' : 'var(--accent)', fontSize: '0.85rem' }}>
+                Início (Start) {hasStartNode && '✓'}
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--sidebar-item-desc)' }}>
+                {hasStartNode ? 'Já existe no fluxo' : 'Ponto de entrada do fluxo (obrigatório)'}
               </div>
             </div>
           </div>
-        )}
+        </div>
 
         {nodeDefinitions.map((node) => (
           <div
