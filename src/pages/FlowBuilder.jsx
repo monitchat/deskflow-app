@@ -64,7 +64,7 @@ function FlowBuilderInner() {
   const { id: flowId } = useParams()
   const toast = __useToast()
   const navigate = useNavigate()
-  const { screenToFlowPosition } = useReactFlow()
+  const { screenToFlowPosition, fitView } = useReactFlow()
 
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
@@ -346,9 +346,16 @@ function FlowBuilderInner() {
 
       if (flow.data.nodes) {
         const hasStart = flow.data.nodes.some((n) => n.type === 'start')
-        const loadedNodes = hasStart
-          ? flow.data.nodes
-          : [START_NODE, ...flow.data.nodes]
+        let loadedNodes = flow.data.nodes
+        if (!hasStart) {
+          const firstNode = flow.data.nodes[0]
+          const startPos = firstNode
+            ? { x: firstNode.position.x, y: firstNode.position.y - 120 }
+            : { x: 250, y: 50 }
+          loadedNodes = [{ ...START_NODE, position: startPos }, ...flow.data.nodes]
+          // Fit view quando injeta Start para garantir visibilidade
+          setTimeout(() => fitView({ padding: 0.2 }), 200)
+        }
         setNodes(loadedNodes)
       }
       if (flow.data.edges) {
@@ -918,6 +925,9 @@ function FlowBuilderInner() {
 
           setNodes(importedNodes)
           setEdges(flowData.edges)
+
+          // Fit view após import para garantir que todos os nós ficam visíveis
+          setTimeout(() => fitView({ padding: 0.2 }), 100)
         } catch (err) {
           await showConfirm({
             title: 'Erro ao ler arquivo',
