@@ -151,7 +151,29 @@ function FlowBuilderInner() {
 
       // Delete ou Backspace
       if (event.key === 'Delete' || event.key === 'Backspace') {
-        if (selectedNodeId) {
+        const selectedNodes = nodes.filter(n => n.selected)
+        if (selectedNodes.length > 1) {
+          // Múltiplos nós selecionados
+          event.preventDefault()
+          const deletableNodes = selectedNodes.filter(n => n.type !== 'start')
+          if (deletableNodes.length === 0) return
+          showConfirm({
+            title: 'Excluir nós',
+            message: `Deseja excluir ${deletableNodes.length} nó(s) selecionado(s) e suas conexões?`,
+            confirmText: 'Excluir',
+            variant: 'destructive',
+          }).then((accepted) => {
+            if (accepted) {
+              const idsToDelete = new Set(deletableNodes.map(n => n.id))
+              setNodes((nds) => nds.filter((n) => !idsToDelete.has(n.id)))
+              setEdges((eds) => eds.filter((e) => !idsToDelete.has(e.source) && !idsToDelete.has(e.target)))
+              setSelectedNodeId(null)
+              setShowNodeEditor(false)
+              setSelectedNode(null)
+            }
+          })
+        } else if (selectedNodeId) {
+          // Nó único selecionado
           event.preventDefault()
           showConfirm({
             title: 'Excluir nó',
