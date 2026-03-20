@@ -555,10 +555,11 @@ function FlowBuilderInner() {
       })
 
       const newNode = {
-        id: getId(),
+        id: type === 'start' ? 'node_start' : getId(),
         type,
         position,
         data: getDefaultNodeData(type),
+        ...(type === 'start' ? { deletable: false } : {}),
       }
 
       setNodes((nds) => nds.concat(newNode))
@@ -899,7 +900,14 @@ function FlowBuilderInner() {
           if (!accepted) return
           if (flowData.name) setFlowName(flowData.name)
           if (flowData.description) setFlowDescription(flowData.description)
-          setNodes(flowData.nodes)
+
+          // Injeta nó Start se não tiver
+          const hasStart = flowData.nodes.some((n) => n.type === 'start')
+          const importedNodes = hasStart
+            ? flowData.nodes
+            : [START_NODE, ...flowData.nodes]
+
+          setNodes(importedNodes)
           setEdges(flowData.edges)
         } catch (err) {
           await showConfirm({
@@ -1276,7 +1284,7 @@ function FlowBuilderInner() {
               boxShadow: !sidebarPinned && sidebarVisible ? '4px 0 20px rgba(0,0,0,0.2)' : 'none',
             }}
           >
-            <Sidebar sidebarPinned={sidebarPinned} onTogglePin={() => {
+            <Sidebar sidebarPinned={sidebarPinned} nodes={nodes} onTogglePin={() => {
               const next = !sidebarPinned
               setSidebarPinned(next)
               localStorage.setItem('deskflow-sidebar-pinned', String(next))

@@ -126,7 +126,8 @@ const nodeDefinitions = [
   },
 ]
 
-function Sidebar({ sidebarPinned, onTogglePin }) {
+function Sidebar({ sidebarPinned, onTogglePin, nodes = [] }) {
+  const hasStartNode = nodes.some((n) => n.type === 'start')
   return (
     <div className="flow-builder-sidebar">
       <div className="sidebar-section">
@@ -160,6 +161,26 @@ function Sidebar({ sidebarPinned, onTogglePin }) {
         <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '0.75rem' }}>
           Arraste os componentes para o canvas
         </p>
+
+        {/* Mostrar Start se não existe no flow */}
+        {!hasStartNode && (
+          <div
+            className="node-type"
+            onDragStart={(event) => onDragStart(event, 'start')}
+            draggable
+            style={{ border: '1px dashed var(--accent)', borderRadius: '8px' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <span className="node-type-icon">{'▶️'}</span>
+              <div>
+                <div style={{ fontWeight: 600, color: 'var(--accent)', fontSize: '0.85rem' }}>Início (Start)</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--sidebar-item-desc)' }}>
+                  Ponto de entrada do fluxo (obrigatório)
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {nodeDefinitions.map((node) => (
           <div

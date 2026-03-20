@@ -324,11 +324,23 @@ function FlowList() {
 
           if (!accepted) return
 
+          // Injeta nó Start se não tiver
+          const hasStart = flowData.nodes.some((n) => n.type === 'start')
+          const importedNodes = hasStart
+            ? flowData.nodes
+            : [{
+                id: 'node_start',
+                type: 'start',
+                position: { x: 250, y: 50 },
+                data: { label: 'Início' },
+                deletable: false,
+              }, ...flowData.nodes]
+
           // Cria um novo fluxo via API
           const response = await api.post('/api/v1/flows', {
             name: flowData.name || 'Fluxo Importado',
             description: flowData.description || '',
-            data: { nodes: flowData.nodes, edges: flowData.edges },
+            data: { nodes: importedNodes, edges: flowData.edges },
             is_active: false,
           })
 
@@ -356,10 +368,22 @@ function FlowList() {
 
   const handleImportAISuccess = async (flowData) => {
     try {
+      // Injeta nó Start se não tiver
+      const hasStart = flowData.nodes.some((n) => n.type === 'start')
+      const importedNodes = hasStart
+        ? flowData.nodes
+        : [{
+            id: 'node_start',
+            type: 'start',
+            position: { x: 250, y: 50 },
+            data: { label: 'Início' },
+            deletable: false,
+          }, ...flowData.nodes]
+
       const response = await api.post('/api/v1/flows', {
         name: flowData.name || 'Fluxo Importado via IA',
         description: flowData.description || 'Importado a partir de PDF',
-        data: { nodes: flowData.nodes, edges: flowData.edges },
+        data: { nodes: importedNodes, edges: flowData.edges },
         is_active: false,
       })
 
