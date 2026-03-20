@@ -348,12 +348,13 @@ function FlowBuilderInner() {
         const hasStart = flow.data.nodes.some((n) => n.type === 'start')
         let loadedNodes = flow.data.nodes
         if (!hasStart) {
-          const firstNode = flow.data.nodes[0]
-          const startPos = firstNode
-            ? { x: firstNode.position.x, y: firstNode.position.y - 120 }
-            : { x: 250, y: 50 }
+          // Posiciona acima do nó mais alto e centralizado horizontalmente
+          const allX = flow.data.nodes.map(n => n.position?.x || 0)
+          const allY = flow.data.nodes.map(n => n.position?.y || 0)
+          const centerX = (Math.min(...allX) + Math.max(...allX)) / 2
+          const minY = Math.min(...allY)
+          const startPos = { x: centerX, y: minY - 150 }
           loadedNodes = [{ ...START_NODE, position: startPos }, ...flow.data.nodes]
-          // Fit view quando injeta Start para garantir visibilidade
           setTimeout(() => fitView({ padding: 0.2 }), 200)
         }
         setNodes(loadedNodes)
@@ -912,14 +913,13 @@ function FlowBuilderInner() {
           const hasStart = flowData.nodes.some((n) => n.type === 'start')
           let importedNodes = flowData.nodes
           if (!hasStart) {
-            // Posiciona o Start acima do primeiro nó
-            const firstNode = flowData.nodes[0]
-            const startPos = firstNode
-              ? { x: firstNode.position.x, y: firstNode.position.y - 120 }
-              : { x: 250, y: 50 }
+            const allX = flowData.nodes.map(n => n.position?.x || 0)
+            const allY = flowData.nodes.map(n => n.position?.y || 0)
+            const centerX = (Math.min(...allX) + Math.max(...allX)) / 2
+            const minY = Math.min(...allY)
             importedNodes = [{
               ...START_NODE,
-              position: startPos,
+              position: { x: centerX, y: minY - 150 },
             }, ...flowData.nodes]
           }
 
