@@ -51,6 +51,7 @@ const nodeTypes = {
   jump_to: CustomNode,
   loop: CustomNode,
   expression: CustomNode,
+  data_structure: CustomNode,
   end: CustomNode,
   input: CustomNode,
   audio_transcription: CustomNode,
@@ -243,6 +244,70 @@ function FlowBuilderInner() {
       }
     }
 
+    const handleExecuteNode = async (event) => {
+      const { nodeId } = event.detail
+      try {
+        // Pega uma sessão ativa para usar como contexto
+        let msisdn = 'standalone_exec'
+        try {
+          const sessionsResp = await api.get('/api/v1/flows/sessions?limit=1')
+          const sessions = sessionsResp.data?.data?.sessions || []
+          if (sessions.length > 0) {
+            msisdn = sessions[0].msisdn
+          }
+        } catch {}
+
+        const resp = await api.post('/api/v1/flows/playground/execute-node', {
+          flow_id: parseInt(flowId),
+          node_id: nodeId,
+          msisdn,
+        })
+
+        if (resp.data.success) {
+          // Atualiza o nó com resultado visual
+          setNodes((nds) =>
+            nds.map((node) => {
+              if (node.id === nodeId) {
+                return {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    _executionResult: {
+                      success: true,
+                      timestamp: new Date().toLocaleTimeString('pt-BR'),
+                      message: `Executado com sucesso`,
+                    }
+                  }
+                }
+              }
+              return node
+            })
+          )
+        } else {
+          setNodes((nds) =>
+            nds.map((node) => {
+              if (node.id === nodeId) {
+                return {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    _executionResult: {
+                      success: false,
+                      timestamp: new Date().toLocaleTimeString('pt-BR'),
+                      message: resp.data.error || 'Erro desconhecido',
+                    }
+                  }
+                }
+              }
+              return node
+            })
+          )
+        }
+      } catch (err) {
+        console.error('Error executing node:', err)
+      }
+    }
+
     const handleNodeExecutionResult = (event) => {
       const { nodeId, ...result } = event.detail
       setNodes((nds) =>
@@ -260,11 +325,13 @@ function FlowBuilderInner() {
 
     window.addEventListener('editNode', handleEditNode)
     window.addEventListener('deleteNode', handleDeleteNode)
+    window.addEventListener('executeNode', handleExecuteNode)
     window.addEventListener('nodeExecutionResult', handleNodeExecutionResult)
 
     return () => {
       window.removeEventListener('editNode', handleEditNode)
       window.removeEventListener('deleteNode', handleDeleteNode)
+      window.removeEventListener('executeNode', handleExecuteNode)
       window.removeEventListener('nodeExecutionResult', handleNodeExecutionResult)
     }
   }, [nodes])
@@ -605,6 +672,20 @@ function FlowBuilderInner() {
         separator: '',
         operations: [],
         label: 'Expressão',
+      },
+      data_structure: {
+        operation: 'create_list',
+        context_key: 'dados',
+        source_variable: '',
+        item_template: '',
+        condition_field: '',
+        condition_operator: 'eq',
+        condition_value: '',
+        sort_field: '',
+        sort_order: 'asc',
+        group_field: '',
+        initial_data: '',
+        label: 'Estrutura de Dados',
       },
     }
 
@@ -1316,6 +1397,7 @@ function FlowBuilderInner() {
                       { type: 'media', icon: '📎', label: 'Mídia' },
                       { type: 'loop', icon: '🔄', label: 'Loop' },
                       { type: 'expression', icon: '📝', label: 'Expressão' },
+                      { type: 'data_structure', icon: '📊', label: 'Dados' },
                       { type: 'jump_to', icon: '↗️', label: 'Pular para' },
                       { type: 'end', icon: '🏁', label: 'Fim' },
                     ]
@@ -1372,6 +1454,8 @@ function FlowBuilderInner() {
         {showEdgeEditor && selectedEdge && (
           <EdgeEditorModal
             edge={selectedEdge}
+            nodes={nodes}
+            edges={edges}
             onSave={onEdgeUpdate}
             onDelete={() => onDeleteEdge(selectedEdge.id)}
             onClose={() => {

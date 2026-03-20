@@ -6,7 +6,8 @@ const CONDITION_TYPES = [
   { value: 'none', label: 'Sem condição (Default)' },
   { value: 'equals', label: 'Igual a (texto exato)' },
   { value: 'contains', label: 'Contém (texto parcial)' },
-  { value: 'context', label: 'Valor no Contexto' },
+  { value: 'context', label: 'Valor no Contexto (1 condição)' },
+  { value: 'multi_context', label: 'Múltiplas Condições (E / OU)' },
   { value: 'is_positive', label: 'Resposta Positiva (Sim/OK)' },
   { value: 'is_digit', label: 'É Número' },
   { value: 'regex', label: 'Expressão Regular' },
@@ -47,7 +48,7 @@ const COMMON_CONTEXT_KEYS = [
   { value: 'last_input', label: 'last_input (último input capturado)' },
 ]
 
-function EdgeEditorModal({ edge, onSave, onDelete, onClose }) {
+function EdgeEditorModal({ edge, nodes = [], edges = [], onSave, onDelete, onClose }) {
   const [conditionType, setConditionType] = useState(
     edge.data?.condition?.type || 'none'
   )
@@ -70,6 +71,83 @@ function EdgeEditorModal({ edge, onSave, onDelete, onClose }) {
   )
   const [label, setLabel] = useState(edge.data?.label || '')
   const [showFieldsModal, setShowFieldsModal] = useState(false)
+  const [multiConditions, setMultiConditions] = useState(
+    edge.data?.condition?.conditions || [{ key: '', operator: 'eq', value: '' }]
+  )
+  const [multiLogic, setMultiLogic] = useState(
+    edge.data?.condition?.logic || 'and'
+  )
+
+  // Detecta se a edge sai de um nó dentro de um loop
+  const loopContext = (() => {
+    const sourceNode = nodes.find(n => n.id === edge.source)
+    if (!sourceNode) return null
+    // Se a source é o próprio loop (handle loop_body), pega os dados do loop
+    if (sourceNode.type === 'loop') return sourceNode.data
+    // Verifica se a source está dentro de um loop (cadeia de edges)
+    const visited = new Set()
+    const findLoop = (nodeId) => {
+      if (visited.has(nodeId)) return null
+      visited.add(nodeId)
+      for (const e of edges) {
+        if (e.target === nodeId) {
+          if (e.sourceHandle === 'loop_body') {
+            const loopNode = nodes.find(n => n.id === e.source)
+            if (loopNode && loopNode.type === 'loop') return loopNode.data
+          }
+          const result = findLoop(e.source)
+          if (result) return result
+        }
+      }
+      return null
+    }
+    return findLoop(edge.source)
+  })()
+
+  // Sugestões de campos do loop + API ancestral
+  const loopFieldSuggestions = (() => {
+    if (!loopContext) return []
+    const itemVar = loopContext.item_variable || 'item'
+    const suggestions = [
+      { value: itemVar, label: `${itemVar} (item atual do loop)` },
+      { value: 'loop.index', label: 'loop.index (índice 0, 1, 2...)' },
+      { value: 'loop.key', label: 'loop.key (chave se dict)' },
+      { value: 'loop.total', label: 'loop.total (total de itens)' },
+      { value: 'loop.first', label: 'loop.first (true se primeiro)' },
+      { value: 'loop.last', label: 'loop.last (true se último)' },
+    ]
+    // Busca campos da API ancestral
+    const visited = new Set()
+    const findApi = (nodeId) => {
+      if (visited.has(nodeId)) return null
+      visited.add(nodeId)
+      for (const e of edges) {
+        if (e.target === nodeId) {
+          const src = nodes.find(n => n.id === e.source)
+          if (src && src.type === 'api_request' && src.data._extracted_paths) {
+            return src.data
+          }
+          const result = findApi(e.source)
+          if (result) return result
+        }
+      }
+      return null
+    }
+    const apiData = findApi(edge.source)
+    if (apiData && apiData._extracted_paths && loopContext.source_variable) {
+      const sourceVar = loopContext.source_variable
+      for (const p of apiData._extracted_paths) {
+        if (p.path.startsWith(sourceVar + '.') && !p.isArray) {
+          const fieldName = p.path.replace(sourceVar + '.', '')
+          suggestions.push({
+            value: `${itemVar}.${fieldName}`,
+            label: `${itemVar}.${fieldName} (ex: ${p.example !== undefined ? String(p.example).substring(0, 30) : '...'})`,
+          })
+        }
+      }
+    }
+    return suggestions
+  })()
 
   // Listener para fechar modal com ESC
   useEffect(() => {
@@ -112,6 +190,12 @@ function EdgeEditorModal({ edge, onSave, onDelete, onClose }) {
         key: contextKey,
         value: contextValue,
         operator: contextOperator,
+      }
+    } else if (conditionType === 'multi_context') {
+      edgeData.data.condition = {
+        type: 'multi_context',
+        logic: multiLogic,
+        conditions: multiConditions.filter(c => c.key),
       }
     } else if (conditionType === 'regex') {
       edgeData.data.condition = {
@@ -172,6 +256,7 @@ function EdgeEditorModal({ edge, onSave, onDelete, onClose }) {
                 onChange={(e) => setContextKey(e.target.value)}
                 placeholder="Ex: cpf, customer.NOMEPARC.$, campo1.campo2 (digite $ para autocompletar)"
                 rows={1}
+                extraSuggestions={loopFieldSuggestions.map(f => ({ label: f.value, value: f.value, example: f.label }))}
               />
               <small style={{ color: '#666', marginTop: '0.5rem', display: 'block' }}>
                 💡 Digite $ para autocompletar ou o nome do campo do contexto (sem $&#123;&#123; &#125;&#125;)
@@ -191,6 +276,43 @@ function EdgeEditorModal({ edge, onSave, onDelete, onClose }) {
                 🔍 Ver Campos Disponíveis no Contexto
               </button>
             </div>
+            {/* Sugestões de campos do Loop */}
+            {loopFieldSuggestions.length > 0 && (
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label style={{ color: '#f59e0b' }}>🔄 Campos do Loop (clique para usar)</label>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                  gap: '0.5rem',
+                  marginTop: '0.5rem'
+                }}>
+                  {loopFieldSuggestions.map((field) => (
+                    <button
+                      key={field.value}
+                      type="button"
+                      onClick={() => setContextKey(field.value)}
+                      style={{
+                        padding: '0.5rem',
+                        textAlign: 'left',
+                        backgroundColor: contextKey === field.value ? 'rgba(245, 158, 11, 0.2)' : 'var(--bg-surface, #f8f9fa)',
+                        border: `1px solid ${contextKey === field.value ? '#f59e0b' : 'var(--border, #dee2e6)'}`,
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        color: 'var(--text-primary, inherit)',
+                      }}
+                    >
+                      <strong>{field.value}</strong>
+                      <br />
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #666)' }}>
+                        {field.label.replace(field.value + ' ', '')}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="form-group">
               <label>Sugestões de Campos Comuns (clique para usar)</label>
               <div style={{
@@ -251,6 +373,185 @@ function EdgeEditorModal({ edge, onSave, onDelete, onClose }) {
                 <small style={{ color: '#666', marginTop: '0.25rem', display: 'block' }}>
                   Para comparações numéricas, use valores numéricos. Use $ para autocompletar campos.
                 </small>
+              </div>
+            )}
+          </>
+        )
+
+      case 'multi_context':
+        return (
+          <>
+            <div className="form-group">
+              <label>Lógica entre condições</label>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setMultiLogic('and')}
+                  style={{
+                    flex: 1,
+                    padding: '0.5rem',
+                    backgroundColor: multiLogic === 'and' ? 'var(--accent, #7c3aed)' : 'var(--bg-surface, #2a2a3e)',
+                    color: multiLogic === 'and' ? '#fff' : 'var(--text-primary, #e0e0e0)',
+                    border: `1px solid ${multiLogic === 'and' ? 'var(--accent, #7c3aed)' : 'var(--border, #333)'}`,
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  E (AND) — Todas devem ser verdadeiras
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMultiLogic('or')}
+                  style={{
+                    flex: 1,
+                    padding: '0.5rem',
+                    backgroundColor: multiLogic === 'or' ? '#f59e0b' : 'var(--bg-surface, #2a2a3e)',
+                    color: multiLogic === 'or' ? '#000' : 'var(--text-primary, #e0e0e0)',
+                    border: `1px solid ${multiLogic === 'or' ? '#f59e0b' : 'var(--border, #333)'}`,
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  OU (OR) — Pelo menos uma
+                </button>
+              </div>
+            </div>
+
+            {multiConditions.map((cond, index) => (
+              <div key={index} style={{
+                padding: '0.8rem',
+                marginBottom: '0.5rem',
+                backgroundColor: 'var(--card-bg, #1a1a2e)',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color, #333)',
+                position: 'relative',
+              }}>
+                {index > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '-14px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    backgroundColor: multiLogic === 'and' ? 'var(--accent, #7c3aed)' : '#f59e0b',
+                    color: multiLogic === 'and' ? '#fff' : '#000',
+                    padding: '0.1rem 0.6rem',
+                    borderRadius: '10px',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                  }}>
+                    {multiLogic === 'and' ? 'E' : 'OU'}
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  <strong style={{ fontSize: '0.8rem' }}>Condição {index + 1}</strong>
+                  {multiConditions.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = [...multiConditions]
+                        updated.splice(index, 1)
+                        setMultiConditions(updated)
+                      }}
+                      style={{ background: 'transparent', border: 'none', color: '#F44336', cursor: 'pointer', fontSize: '1rem' }}
+                    >
+                      🗑️
+                    </button>
+                  )}
+                </div>
+                <div className="form-group" style={{ marginBottom: '0.4rem' }}>
+                  <label style={{ fontSize: '0.8rem' }}>Chave</label>
+                  <AutocompleteTextarea
+                    value={cond.key || ''}
+                    onChange={(e) => {
+                      const updated = [...multiConditions]
+                      updated[index] = { ...updated[index], key: e.target.value }
+                      setMultiConditions(updated)
+                    }}
+                    placeholder="item.userId"
+                    rows={1}
+                    extraSuggestions={loopFieldSuggestions.map(f => ({ label: f.value, value: f.value, example: f.label }))}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <div className="form-group" style={{ flex: '0 0 140px', marginBottom: 0 }}>
+                    <select
+                      value={cond.operator || 'eq'}
+                      onChange={(e) => {
+                        const updated = [...multiConditions]
+                        updated[index] = { ...updated[index], operator: e.target.value }
+                        setMultiConditions(updated)
+                      }}
+                      style={{ fontSize: '0.8rem', backgroundColor: 'var(--input-bg, #1e1e2e)', color: 'var(--text-primary, #e0e0e0)', borderColor: 'var(--border-color, #333)' }}
+                    >
+                      <option value="eq">= Igual</option>
+                      <option value="neq">≠ Diferente</option>
+                      <option value="gt">&gt; Maior</option>
+                      <option value="gte">≥ Maior/igual</option>
+                      <option value="lt">&lt; Menor</option>
+                      <option value="lte">≤ Menor/igual</option>
+                      <option value="contains">Contém</option>
+                      <option value="not_contains">Não contém</option>
+                      <option value="exists">Existe</option>
+                      <option value="not_exists">Não existe</option>
+                    </select>
+                  </div>
+                  {!['exists', 'not_exists'].includes(cond.operator) && (
+                    <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                      <input
+                        type="text"
+                        value={cond.value || ''}
+                        onChange={(e) => {
+                          const updated = [...multiConditions]
+                          updated[index] = { ...updated[index], value: e.target.value }
+                          setMultiConditions(updated)
+                        }}
+                        placeholder="Valor"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => setMultiConditions([...multiConditions, { key: '', operator: 'eq', value: '' }])}
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                backgroundColor: 'var(--bg-surface, #2a2a3e)',
+                color: 'var(--text-primary, #e0e0e0)',
+                border: '1px dashed var(--border, #444)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '0.85rem',
+                marginBottom: '1rem',
+              }}
+            >
+              + Adicionar Condição
+            </button>
+
+            {/* Sugestões de campos do Loop */}
+            {loopFieldSuggestions.length > 0 && (
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label style={{ color: '#f59e0b', fontSize: '0.85rem' }}>🔄 Campos do Loop disponíveis:</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginTop: '0.3rem' }}>
+                  {loopFieldSuggestions.map((field) => (
+                    <span key={field.value} style={{
+                      padding: '0.2rem 0.5rem',
+                      fontSize: '0.7rem',
+                      fontFamily: 'monospace',
+                      backgroundColor: 'var(--bg-surface, #2a2a3e)',
+                      border: '1px solid var(--border, #444)',
+                      borderRadius: '4px',
+                      color: 'var(--text-primary, #e0e0e0)',
+                    }}>
+                      {field.value}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
           </>
