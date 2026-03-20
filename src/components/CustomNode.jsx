@@ -23,6 +23,7 @@ const nodeIcons = {
   input: '⌨️',
   loop: '🔄',
   expression: '📝',
+  data_structure: '📊',
   audio_transcription: '🎤',
 }
 
@@ -48,6 +49,7 @@ const nodeLabels = {
   input: 'Input',
   loop: 'Loop',
   expression: 'Expressão',
+  data_structure: 'Dados',
   audio_transcription: 'Transcrição',
 }
 
@@ -136,6 +138,41 @@ function CustomNode({ data, type, selected, id }) {
         >
           ✏️
         </button>
+        {['data_structure', 'expression', 'set_context', 'api_request', 'loop'].includes(type) && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              window.dispatchEvent(new CustomEvent('executeNode', {
+                detail: { nodeId: id, nodeType: type, nodeData: data }
+              }))
+            }}
+            style={{
+              width: '22px',
+              height: '22px',
+              padding: '0',
+              fontSize: '0.7rem',
+              backgroundColor: '#4CAF50',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+              transition: 'all 0.15s',
+            }}
+            title="Executar nó"
+            onMouseEnter={(e) => {
+              e.target.style.transform = 'scale(1.05)'
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = 'scale(1)'
+            }}
+          >
+            ▶
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -469,6 +506,46 @@ function CustomNode({ data, type, selected, id }) {
                 <br />
                 <small style={{ color: '#9C27B0' }}>
                   🔧 {data.operations.length} operação(ões)
+                </small>
+              </>
+            )}
+          </div>
+        )
+      case 'data_structure':
+        const opLabels = {
+          create_list: '📋 Criar Lista',
+          create_object: '📦 Criar Objeto',
+          add_item: '➕ Adicionar Item',
+          remove_item: '➖ Remover Item',
+          update_item: '✏️ Atualizar Item',
+          filter: '🔍 Filtrar',
+          sort: '↕️ Ordenar',
+          group_by: '📁 Agrupar',
+          count: '🔢 Contar',
+          sum: '➕ Somar',
+          set_field: '📝 Definir Campo',
+          merge_lists: '🔗 Combinar Listas',
+        }
+        return (
+          <div className="node-content">
+            {data.label || 'Estrutura de Dados'}
+            <br />
+            <small style={{ color: '#9C27B0' }}>
+              {opLabels[data.operation] || data.operation}
+            </small>
+            {data.context_key && (
+              <>
+                <br />
+                <small style={{ color: 'var(--text-dim, #999)' }}>
+                  → {data.context_key}
+                </small>
+              </>
+            )}
+            {data.source_variable && (
+              <>
+                <br />
+                <small style={{ color: 'var(--text-dim, #999)' }}>
+                  fonte: {data.source_variable}
                 </small>
               </>
             )}

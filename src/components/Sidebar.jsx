@@ -101,6 +101,12 @@ const nodeDefinitions = [
     description: 'Concatena, formata e calcula valores',
   },
   {
+    type: 'data_structure',
+    label: 'Estrutura de Dados',
+    icon: '📊',
+    description: 'Cria e manipula listas, objetos e tabelas',
+  },
+  {
     type: 'jump_to',
     label: 'Pular para',
     icon: '↗️',

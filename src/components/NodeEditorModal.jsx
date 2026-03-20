@@ -3034,6 +3034,278 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
           </>
         )
 
+      case 'data_structure':
+        const dsOperations = [
+          { value: 'create_list', label: '📋 Criar Lista', group: 'Criar' },
+          { value: 'create_object', label: '📦 Criar Objeto', group: 'Criar' },
+          { value: 'add_item', label: '➕ Adicionar Item', group: 'Modificar' },
+          { value: 'remove_item', label: '➖ Remover Item', group: 'Modificar' },
+          { value: 'update_item', label: '✏️ Atualizar Item', group: 'Modificar' },
+          { value: 'set_field', label: '📝 Definir Campo (em objeto)', group: 'Modificar' },
+          { value: 'merge_lists', label: '🔗 Combinar Listas', group: 'Modificar' },
+          { value: 'filter', label: '🔍 Filtrar', group: 'Consultar' },
+          { value: 'sort', label: '↕️ Ordenar', group: 'Consultar' },
+          { value: 'group_by', label: '📁 Agrupar por Campo', group: 'Consultar' },
+          { value: 'count', label: '🔢 Contar Itens', group: 'Consultar' },
+          { value: 'sum', label: '➕ Somar Campo', group: 'Consultar' },
+        ]
+        const dsOp = data.operation || 'create_list'
+        const needsSource = ['filter', 'sort', 'group_by', 'count', 'sum', 'merge_lists'].includes(dsOp)
+        const needsCondition = ['filter', 'remove_item', 'update_item', 'count'].includes(dsOp)
+        const needsItem = ['add_item', 'update_item'].includes(dsOp)
+        const needsSort = ['sort', 'sum'].includes(dsOp)
+        const needsGroup = dsOp === 'group_by'
+        const needsInitial = ['create_list', 'create_object'].includes(dsOp)
+        const needsSetField = dsOp === 'set_field'
+        return (
+          <>
+            <div className="form-group">
+              <label>Rótulo</label>
+              <input
+                type="text"
+                value={data.label || ''}
+                onChange={(e) => updateData('label', e.target.value)}
+                placeholder="Nome da operação"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Operação</label>
+              <select
+                value={dsOp}
+                onChange={(e) => updateData('operation', e.target.value)}
+                style={{ backgroundColor: 'var(--input-bg, #1e1e2e)', color: 'var(--text-primary, #e0e0e0)', borderColor: 'var(--border-color, #333)' }}
+              >
+                {['Criar', 'Modificar', 'Consultar'].map(group => (
+                  <optgroup key={group} label={group}>
+                    {dsOperations.filter(o => o.group === group).map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Salvar em (Context Key)</label>
+              <input
+                type="text"
+                value={data.context_key || 'dados'}
+                onChange={(e) => updateData('context_key', e.target.value)}
+                placeholder="dados"
+                style={{ fontFamily: 'monospace' }}
+              />
+              <small style={{ color: 'var(--text-secondary, #888)' }}>
+                Use <code>{'${{' + (data.context_key || 'dados') + '}}'}</code> para acessar. Para listas: <code>{'${{' + (data.context_key || 'dados') + '.0.campo}}'}</code>
+              </small>
+            </div>
+
+            {needsSource && (
+              <div className="form-group">
+                <label>Variável Fonte</label>
+                <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
+                  value={data.source_variable || ''}
+                  onChange={(e) => updateData('source_variable', e.target.value.replace(/\$\{\{/g, '').replace(/\}\}/g, '').trim())}
+                  placeholder="api_response.data.items"
+                  rows={1}
+                />
+                <small style={{ color: 'var(--text-secondary, #888)' }}>
+                  Lista ou objeto fonte para a operação.
+                </small>
+              </div>
+            )}
+
+            {needsInitial && (
+              <div className="form-group">
+                <label>Dados Iniciais (JSON, opcional)</label>
+                <textarea
+                  value={data.initial_data || ''}
+                  onChange={(e) => updateData('initial_data', e.target.value)}
+                  placeholder={dsOp === 'create_list' ? '[\n  {"nome": "Item 1"},\n  {"nome": "Item 2"}\n]' : '{\n  "campo1": "valor1"\n}'}
+                  rows={4}
+                  style={{
+                    width: '100%',
+                    fontFamily: 'monospace',
+                    fontSize: '0.8rem',
+                    backgroundColor: 'var(--input-bg, #1e1e2e)',
+                    color: 'var(--text-primary, #e0e0e0)',
+                    border: '1px solid var(--border-color, #333)',
+                    borderRadius: '4px',
+                    padding: '0.5rem',
+                  }}
+                />
+                <small style={{ color: 'var(--text-secondary, #888)' }}>
+                  Deixe vazio para criar {dsOp === 'create_list' ? 'lista' : 'objeto'} vazio.
+                </small>
+              </div>
+            )}
+
+            {needsItem && (
+              <div className="form-group">
+                <label>{dsOp === 'add_item' ? 'Item a Adicionar (JSON)' : 'Campos a Atualizar (JSON)'}</label>
+                <AutocompleteTextarea
+                  extraSuggestions={allExtraSuggestions}
+                  value={data.item_template || ''}
+                  onChange={(e) => updateData('item_template', e.target.value)}
+                  placeholder={'{"id": "${{item.id}}", "titulo": "${{item.title}}"}'}
+                  rows={3}
+                />
+                <FieldHelper
+                  title={dsOp === 'add_item' ? 'Formato do item' : 'Campos para atualizar'}
+                  description="JSON com os campos. Use variáveis do contexto para valores dinâmicos."
+                  example={'{"nome": "${{item.title}}", "valor": "${{item.id}}"}'}
+                  onUseExample={(ex) => updateData('item_template', ex)}
+                />
+              </div>
+            )}
+
+            {needsSetField && (
+              <>
+                <div className="form-group">
+                  <label>Nome do Campo</label>
+                  <input
+                    type="text"
+                    value={data.field_name || ''}
+                    onChange={(e) => updateData('field_name', e.target.value)}
+                    placeholder="nome_do_campo"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Valor</label>
+                  <AutocompleteTextarea
+                    extraSuggestions={allExtraSuggestions}
+                    value={data.field_value || ''}
+                    onChange={(e) => updateData('field_value', e.target.value)}
+                    placeholder="valor ou ${{variavel}}"
+                    rows={1}
+                  />
+                </div>
+              </>
+            )}
+
+            {needsCondition && (
+              <div style={{
+                padding: '0.8rem',
+                backgroundColor: 'var(--card-bg, #1a1a2e)',
+                borderRadius: '8px',
+                marginTop: '0.5rem',
+                border: '1px solid var(--border-color, #333)',
+              }}>
+                <strong style={{ fontSize: '0.85rem' }}>🔍 Condição</strong>
+                <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                  <label style={{ fontSize: '0.8rem' }}>Campo</label>
+                  <input
+                    type="text"
+                    value={data.condition_field || ''}
+                    onChange={(e) => updateData('condition_field', e.target.value)}
+                    placeholder="userId"
+                    style={{ fontFamily: 'monospace' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <div className="form-group" style={{ flex: '0 0 130px' }}>
+                    <select
+                      value={data.condition_operator || 'eq'}
+                      onChange={(e) => updateData('condition_operator', e.target.value)}
+                      style={{ fontSize: '0.8rem', backgroundColor: 'var(--input-bg, #1e1e2e)', color: 'var(--text-primary, #e0e0e0)', borderColor: 'var(--border-color, #333)' }}
+                    >
+                      <option value="eq">= Igual</option>
+                      <option value="neq">≠ Diferente</option>
+                      <option value="gt">&gt; Maior</option>
+                      <option value="gte">≥ Maior/igual</option>
+                      <option value="lt">&lt; Menor</option>
+                      <option value="lte">≤ Menor/igual</option>
+                      <option value="contains">Contém</option>
+                      <option value="not_contains">Não contém</option>
+                      <option value="exists">Existe</option>
+                      <option value="not_exists">Não existe</option>
+                    </select>
+                  </div>
+                  {!['exists', 'not_exists'].includes(data.condition_operator) && (
+                    <div className="form-group" style={{ flex: 1 }}>
+                      <input
+                        type="text"
+                        value={data.condition_value || ''}
+                        onChange={(e) => updateData('condition_value', e.target.value)}
+                        placeholder="Valor"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {needsSort && (
+              <div style={{
+                padding: '0.8rem',
+                backgroundColor: 'var(--card-bg, #1a1a2e)',
+                borderRadius: '8px',
+                marginTop: '0.5rem',
+                border: '1px solid var(--border-color, #333)',
+              }}>
+                <strong style={{ fontSize: '0.85rem' }}>{dsOp === 'sum' ? '➕ Campo para Somar' : '↕️ Ordenação'}</strong>
+                <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                  <label style={{ fontSize: '0.8rem' }}>Campo</label>
+                  <input
+                    type="text"
+                    value={data.sort_field || ''}
+                    onChange={(e) => updateData('sort_field', e.target.value)}
+                    placeholder="preco"
+                    style={{ fontFamily: 'monospace' }}
+                  />
+                </div>
+                {dsOp === 'sort' && (
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.8rem' }}>Ordem</label>
+                    <select
+                      value={data.sort_order || 'asc'}
+                      onChange={(e) => updateData('sort_order', e.target.value)}
+                      style={{ backgroundColor: 'var(--input-bg, #1e1e2e)', color: 'var(--text-primary, #e0e0e0)', borderColor: 'var(--border-color, #333)' }}
+                    >
+                      <option value="asc">↑ Crescente (A→Z, 1→9)</option>
+                      <option value="desc">↓ Decrescente (Z→A, 9→1)</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {needsGroup && (
+              <div className="form-group">
+                <label>Campo para Agrupar</label>
+                <input
+                  type="text"
+                  value={data.group_field || ''}
+                  onChange={(e) => updateData('group_field', e.target.value)}
+                  placeholder="categoria"
+                  style={{ fontFamily: 'monospace' }}
+                />
+                <small style={{ color: 'var(--text-secondary, #888)' }}>
+                  O resultado será um objeto onde cada chave é um valor do campo, e o valor é a lista de itens daquele grupo.
+                </small>
+              </div>
+            )}
+
+            <div style={{
+              padding: '0.8rem',
+              backgroundColor: 'var(--card-bg, rgba(100,100,255,0.05))',
+              borderRadius: '8px',
+              marginTop: '1rem',
+              border: '1px solid var(--border-color, #333)',
+            }}>
+              <strong style={{ fontSize: '0.85rem' }}>💡 Exemplos de uso:</strong>
+              <div style={{ fontSize: '0.78rem', marginTop: '0.5rem', lineHeight: 1.7 }}>
+                <div><strong>Filtrar pedidos:</strong> Fonte: <code>api_response</code> → Filtrar → Campo: <code>userId</code> = <code>1</code></div>
+                <div><strong>Contar itens:</strong> Fonte: <code>pedidos</code> → Contar → Salvar em: <code>total_pedidos</code></div>
+                <div><strong>Somar valores:</strong> Fonte: <code>pedidos</code> → Somar → Campo: <code>valor</code></div>
+                <div><strong>Ordenar:</strong> Fonte: <code>produtos</code> → Ordenar → Campo: <code>preco</code> ↑</div>
+                <div><strong>Montar objeto:</strong> Criar Objeto → Definir Campo → <code>nome</code> = <code>{'${{user_input}}'}</code></div>
+              </div>
+            </div>
+          </>
+        )
+
       case 'end':
         return (
           <>
