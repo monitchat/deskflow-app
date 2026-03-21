@@ -5047,6 +5047,49 @@ Regras:
           </>
         )
 
+      case 'start':
+        return (
+          <>
+            <div className="form-group">
+              <label>Mensagem de Saída (quando o usuário digita "sair")</label>
+              <AutocompleteTextarea
+                extraSuggestions={allExtraSuggestions}
+                value={data.exit_message || ''}
+                onChange={(e) => updateData('exit_message', e.target.value)}
+                placeholder="Conversa encerrada. Digite qualquer coisa para recomeçar."
+                rows={3}
+              />
+              <FieldHelper
+                description="Mensagem enviada quando o usuário digita uma palavra de saída (sair, encerrar, etc). Deixe vazio para usar a mensagem padrão."
+                example="Obrigado pelo contato! Esperamos ter ajudado. 😊"
+                onUseExample={(ex) => updateData('exit_message', ex)}
+              />
+            </div>
+            <div className="form-group">
+              <label>Mensagem de Voltar (quando o usuário digita "voltar")</label>
+              <AutocompleteTextarea
+                extraSuggestions={allExtraSuggestions}
+                value={data.back_message || ''}
+                onChange={(e) => updateData('back_message', e.target.value)}
+                placeholder="Voltando ao passo anterior..."
+                rows={2}
+              />
+              <FieldHelper
+                description="Mensagem enviada quando o usuário digita 'voltar'. Deixe vazio para apenas voltar sem mensagem."
+              />
+            </div>
+            <div className="form-group">
+              <label>Rótulo</label>
+              <input
+                type="text"
+                value={data.label || ''}
+                onChange={(e) => updateData('label', e.target.value)}
+                placeholder="Início do fluxo"
+              />
+            </div>
+          </>
+        )
+
       default:
         return (
           <div className="form-group">
@@ -5154,6 +5197,91 @@ Regras:
           padding: '1.5rem 2rem',
         }}>
           {renderForm()}
+
+          {/* Limite de tentativas — disponível em nós interativos */}
+          {!['start', 'end', 'ai_tool', 'expression', 'data_structure',
+              'set_context', 'delay', 'loop'].includes(node.type) && (
+            <div style={{
+              marginTop: '1.5rem',
+              padding: '1rem',
+              border: '1px solid var(--border-color, #333)',
+              borderRadius: '8px',
+              backgroundColor: 'var(--bg-secondary, #1a1a2e)',
+            }}>
+              <div
+                style={{
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontWeight: 'bold',
+                  color: 'var(--text-primary, #e0e0e0)',
+                }}
+                onClick={() => {
+                  const el = document.getElementById('retry-config')
+                  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none'
+                }}
+              >
+                <span>🔄 Limite de Tentativas</span>
+                <span style={{ fontSize: '0.8rem', color: '#888' }}>
+                  {data.max_retries > 0 ? `${data.max_retries} tentativas` : 'Desabilitado'}
+                </span>
+              </div>
+              <div id="retry-config" style={{ display: data.max_retries > 0 ? 'block' : 'none', marginTop: '0.75rem' }}>
+                <div className="form-group">
+                  <label>Máximo de tentativas</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="99"
+                    value={data.max_retries || 0}
+                    onChange={(e) => updateData('max_retries', parseInt(e.target.value) || 0)}
+                    placeholder="0 = desabilitado"
+                  />
+                  <small style={{ color: '#888' }}>
+                    Se o usuário ficar preso neste nó por N tentativas, será redirecionado. 0 = sem limite.
+                  </small>
+                </div>
+                {data.max_retries > 0 && (
+                  <>
+                    <div className="form-group">
+                      <label>Nó de fallback (redirecionamento)</label>
+                      <select
+                        value={data.fallback_node || ''}
+                        onChange={(e) => updateData('fallback_node', e.target.value)}
+                      >
+                        <option value="">Voltar ao início do fluxo</option>
+                        {nodes
+                          .filter(n => n.id !== node.id && n.type !== 'ai_tool')
+                          .map(n => (
+                            <option key={n.id} value={n.id}>
+                              {n.data?.label || n.type} ({n.id})
+                            </option>
+                          ))
+                        }
+                      </select>
+                      <small style={{ color: '#888' }}>
+                        Para onde o usuário será enviado após atingir o limite. Vazio = volta ao início.
+                      </small>
+                    </div>
+                    <div className="form-group">
+                      <label>Mensagem de fallback</label>
+                      <AutocompleteTextarea
+                        extraSuggestions={allExtraSuggestions}
+                        value={data.fallback_message || ''}
+                        onChange={(e) => updateData('fallback_message', e.target.value)}
+                        placeholder="Você atingiu o número máximo de tentativas."
+                        rows={2}
+                      />
+                      <small style={{ color: '#888' }}>
+                        Mensagem enviada antes de redirecionar. Deixe vazio para usar a padrão.
+                      </small>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer fixo */}

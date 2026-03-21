@@ -87,6 +87,24 @@ function CustomNode({ data, type, selected, id }) {
     return lines.length > 0 ? lines.join('\n') : null
   }
 
+  const renderRetryBadge = () => {
+    if (!data.max_retries || data.max_retries <= 0) return null
+    if (['start', 'end', 'ai_tool', 'expression', 'data_structure',
+         'set_context', 'delay', 'loop'].includes(type)) return null
+    return (
+      <div style={{
+        fontSize: '0.65rem',
+        color: '#FF9800',
+        marginTop: '3px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '3px',
+      }}>
+        🔄 máx {data.max_retries} tentativas
+      </div>
+    )
+  }
+
   const renderActionButtons = () => {
     if (!selected) return null
 
@@ -793,6 +811,15 @@ function CustomNode({ data, type, selected, id }) {
     }
   }
 
+  const getNodeContentWithRetry = () => {
+    return (
+      <>
+        {getNodeContent()}
+        {renderRetryBadge()}
+      </>
+    )
+  }
+
   const tooltipContent = getTooltipContent()
 
   const renderTooltip = () => {
@@ -859,7 +886,7 @@ function CustomNode({ data, type, selected, id }) {
             <span style={{ marginRight: '5px' }}>{icon}</span>
             {label}
           </div>
-          {getNodeContent()}
+          {getNodeContentWithRetry()}
 
           {/* Card de resultado da execução */}
           {execResult && (
@@ -1033,7 +1060,7 @@ function CustomNode({ data, type, selected, id }) {
             <span style={{ marginRight: '5px' }}>{icon}</span>
             {label}
           </div>
-          {getNodeContent()}
+          {getNodeContentWithRetry()}
 
           {/* Handles dinâmicos para cada opção/intenção */}
           {items.map((item, index) => (
@@ -1105,7 +1132,7 @@ function CustomNode({ data, type, selected, id }) {
             <span style={{ marginRight: '5px' }}>{icon}</span>
             {label}
           </div>
-          {getNodeContent()}
+          {getNodeContentWithRetry()}
         </div>
 
         <Handle type="source" position={Position.Bottom} />
@@ -1173,7 +1200,7 @@ function CustomNode({ data, type, selected, id }) {
             <span style={{ marginRight: '5px' }}>{icon}</span>
             {label}
           </div>
-          {getNodeContent()}
+          {getNodeContentWithRetry()}
         </div>
 
         <Handle
@@ -1225,7 +1252,7 @@ function CustomNode({ data, type, selected, id }) {
             <span style={{ marginRight: '5px' }}>{icon}</span>
             {label}
           </div>
-          {getNodeContent()}
+          {getNodeContentWithRetry()}
           {hasAudioConfig && (
             <div style={{
               fontSize: '0.7rem',
@@ -1259,7 +1286,7 @@ function CustomNode({ data, type, selected, id }) {
             <span style={{ marginRight: '5px' }}>{icon}</span>
             {label}
           </div>
-          {getNodeContent()}
+          {getNodeContentWithRetry()}
 
           {/* Label do handle corpo */}
           <div style={{
@@ -1325,7 +1352,7 @@ function CustomNode({ data, type, selected, id }) {
           <span style={{ marginRight: '5px' }}>{icon}</span>
           {label}
         </div>
-        {getNodeContent()}
+        {getNodeContentWithRetry()}
       </div>
 
       {type !== 'end' && type !== 'jump_to' && type !== 'audio_transcription' && <Handle type="source" position={Position.Bottom} />}
