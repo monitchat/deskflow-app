@@ -6,6 +6,7 @@ import AccountsPanel from '../components/AccountsPanel'
 import ConfirmModal from '../components/ConfirmModal'
 import TutorialModal from '../components/TutorialModal'
 import ImportFlowModal from '../components/ImportFlowModal'
+import SchedulePanel from '../components/SchedulePanel'
 import { useToast } from '../contexts/ToastContext'
 
 const styles = {
@@ -185,6 +186,7 @@ function FlowList() {
   const confirmResolveRef = useRef(null)
   const [showTutorial, setShowTutorial] = useState(false)
   const [showImportAI, setShowImportAI] = useState(false)
+  const [scheduleFlowId, setScheduleFlowId] = useState(null)
   const isMaster = localStorage.getItem('user_is_master') === 'true'
   const isAdmin = localStorage.getItem('user_is_admin') === 'true'
   const navigate = useNavigate()
@@ -583,6 +585,37 @@ function FlowList() {
                     Empresa {flow.company_id}
                   </span>
                 )}
+                {/* Badge de modo de execução */}
+                {flow.execution_mode && flow.execution_mode !== 'passive' && (
+                  <span style={{
+                    marginLeft: '0.4rem',
+                    fontSize: '0.62rem',
+                    fontWeight: 600,
+                    padding: '0.12rem 0.45rem',
+                    borderRadius: '10px',
+                    backgroundColor: flow.execution_mode === 'active'
+                      ? 'rgba(245, 158, 11, 0.12)'
+                      : 'rgba(16, 185, 129, 0.12)',
+                    color: flow.execution_mode === 'active' ? '#f59e0b' : '#10b981',
+                    verticalAlign: 'middle',
+                  }}>
+                    {flow.execution_mode === 'active' ? 'Ativo' : 'Ambos'}
+                  </span>
+                )}
+                {/* Ícone de agendamento */}
+                {flow.has_active_schedule && (
+                  <span
+                    title="Agendamento ativo"
+                    style={{
+                      marginLeft: '0.35rem',
+                      fontSize: '0.82rem',
+                      verticalAlign: 'middle',
+                      cursor: 'default',
+                    }}
+                  >
+                    &#9200;
+                  </span>
+                )}
               </h3>
               <p style={styles.cardDesc}>{flow.description || 'Sem descrição'}</p>
 
@@ -636,6 +669,26 @@ function FlowList() {
                       }}
                     >
                       Contas
+                    </button>
+                    <button
+                      style={{
+                        ...styles.btnToggle,
+                        padding: '0.4rem 0.55rem',
+                        fontSize: '1rem',
+                        lineHeight: 1,
+                      }}
+                      onClick={(e) => { e.stopPropagation(); setScheduleFlowId(flow.id) }}
+                      onMouseEnter={(e) => {
+                        e.target.style.borderColor = '#f59e0b'
+                        e.target.style.color = '#f59e0b'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.borderColor = 'var(--border)'
+                        e.target.style.color = 'var(--text-muted)'
+                      }}
+                      title="Agendamento"
+                    >
+                      &#9200;
                     </button>
                   </>
                 )}
@@ -812,6 +865,14 @@ function FlowList() {
         <ImportFlowModal
           onClose={() => setShowImportAI(false)}
           onSuccess={handleImportAISuccess}
+        />
+      )}
+
+      {scheduleFlowId && (
+        <SchedulePanel
+          flowId={scheduleFlowId}
+          isNewFlow={false}
+          onClose={() => { setScheduleFlowId(null); loadFlows() }}
         />
       )}
 

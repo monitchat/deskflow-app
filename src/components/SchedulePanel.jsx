@@ -50,12 +50,14 @@ function SchedulePanel({ flowId, isNewFlow, flowName, flowDescription, nodes, ed
   const [schedule, setSchedule] = useState(DEFAULT_SCHEDULE)
   const [scheduleId, setScheduleId] = useState(null)
   const [currentFlowId, setCurrentFlowId] = useState(isNewFlow ? null : flowId)
+  const [executionMode, setExecutionMode] = useState('passive')
   const [newTimeValue, setNewTimeValue] = useState('12:00')
   const [lastSavedAt, setLastSavedAt] = useState(null)
 
   useEffect(() => {
     if (currentFlowId) {
       loadSchedules()
+      loadExecutionMode()
     }
   }, [currentFlowId])
 
@@ -91,6 +93,33 @@ function SchedulePanel({ flowId, isNewFlow, flowName, flowDescription, nodes, ed
       console.warn('Schedule API not available yet:', err.message)
     }
     setLoading(false)
+  }
+
+  const loadExecutionMode = async () => {
+    try {
+      const res = await api.get(`/api/v1/flows/${currentFlowId}`)
+      if (res.data?.success) {
+        setExecutionMode(res.data.data?.execution_mode || 'passive')
+      }
+    } catch (err) {
+      console.warn('Could not load execution mode:', err.message)
+    }
+  }
+
+  const saveExecutionMode = async (mode) => {
+    setExecutionMode(mode)
+    if (!currentFlowId) return
+    try {
+      await api.put(`/api/v1/flows/${currentFlowId}`, { execution_mode: mode })
+      toast.success(
+        mode === 'passive' ? 'Modo passivo: responde apenas mensagens'
+        : mode === 'active' ? 'Modo ativo: executa apenas por agendamento'
+        : 'Modo ambos: responde mensagens e executa agendamentos'
+      )
+    } catch (err) {
+      console.error('Error saving execution mode:', err)
+      toast.error('Erro ao salvar modo de execucao')
+    }
   }
 
   const updateField = useCallback((field, value) => {
@@ -475,8 +504,48 @@ function SchedulePanel({ flowId, isNewFlow, flowName, flowDescription, nodes, ed
   // ─── Tab Renderers ────────────────────────────────────────
 
   function renderConfigTab() {
+    const EXECUTION_MODES = [
+      { value: 'passive', label: 'Passivo', desc: 'Responde apenas mensagens recebidas' },
+      { value: 'active', label: 'Ativo', desc: 'Executa apenas por agendamento' },
+      { value: 'both', label: 'Ambos', desc: 'Responde mensagens e executa agendamentos' },
+    ]
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        {/* Execution mode */}
+        <div>
+          <label style={labelStyle}>Modo de execucao do fluxo</label>
+          <p style={descStyle}>Define como este fluxo pode ser acionado.</p>
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            {EXECUTION_MODES.map(mode => {
+              const isSelected = executionMode === mode.value
+              return (
+                <button
+                  key={mode.value}
+                  onClick={() => saveExecutionMode(mode.value)}
+                  title={mode.desc}
+                  style={{
+                    flex: 1,
+                    padding: '0.55rem 0.5rem',
+                    backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.12)' : 'var(--bg-input, #0f172a)',
+                    color: isSelected ? 'var(--accent-light, #818cf8)' : 'var(--text-muted, #94a3b8)',
+                    border: `1px solid ${isSelected ? 'rgba(99, 102, 241, 0.4)' : 'var(--border, #334155)'}`,
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.82rem',
+                    fontWeight: isSelected ? 600 : 400,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {mode.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div style={{ height: '1px', backgroundColor: 'var(--border, #334155)' }} />
+
         {/* Schedule name */}
         <div>
           <label style={labelStyle}>Nome do agendamento</label>
