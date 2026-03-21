@@ -28,6 +28,7 @@ import UsersPanel from '../components/UsersPanel'
 import ConfirmModal from '../components/ConfirmModal'
 import KnowledgeBasePanel from '../components/KnowledgeBasePanel'
 import ExecutionLogsPanel from '../components/ExecutionLogsPanel'
+import SchedulePanel from '../components/SchedulePanel'
 import TutorialModal from '../components/TutorialModal'
 import { useToast as __useToast } from '../contexts/ToastContext'
 
@@ -83,6 +84,7 @@ function FlowBuilderInner() {
   const [showUsers, setShowUsers] = useState(false)
   const [showKnowledge, setShowKnowledge] = useState(false)
   const [showLogs, setShowLogs] = useState(false)
+  const [showSchedule, setShowSchedule] = useState(false)
   const isAdmin = localStorage.getItem('user_is_admin') === 'true'
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState(null)
@@ -1225,6 +1227,14 @@ function FlowBuilderInner() {
                       >
                         <span>Usuários</span>
                       </button>
+                      <button
+                        style={menuItemStyle}
+                        onClick={() => { setShowMenu(false); setShowSchedule(true) }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <span>&#9200; Agendamento</span>
+                      </button>
                       <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.3rem 0' }} />
                       <button
                         style={menuItemStyle}
@@ -1567,6 +1577,19 @@ function FlowBuilderInner() {
           <KnowledgeBasePanel
             flowId={flowId}
             onClose={() => setShowKnowledge(false)}
+          />
+        )}
+
+        {showSchedule && (
+          <SchedulePanel
+            flowId={flowId}
+            isNewFlow={!flowId || flowId === 'new'}
+            flowName={flowName}
+            flowDescription={flowDescription}
+            nodes={nodes}
+            edges={edges}
+            onFlowCreated={(newId) => navigate(`/flow/${newId}`)}
+            onClose={() => setShowSchedule(false)}
           />
         )}
 
