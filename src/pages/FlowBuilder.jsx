@@ -1351,6 +1351,10 @@ function FlowBuilderInner() {
               onSelectionChange={onSelectionChange}
               nodeTypes={nodeTypes}
               fitView
+              panOnScroll
+              selectionOnDrag
+              panOnDrag={[1, 2]}
+              selectNodesOnDrag={false}
             >
               <Background />
               <Controls />
