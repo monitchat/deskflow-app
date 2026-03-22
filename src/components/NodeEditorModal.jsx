@@ -117,6 +117,14 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
   const [loadingTicketStatuses, setLoadingTicketStatuses] = useState(false)
   const [ticketStatusesError, setTicketStatusesError] = useState(null)
 
+  // Estados para contas WhatsApp e templates (nó whatsapp_template)
+  const [waAccounts, setWaAccounts] = useState([])
+  const [loadingWaAccounts, setLoadingWaAccounts] = useState(false)
+  const [waAccountsError, setWaAccountsError] = useState(null)
+  const [waTemplates, setWaTemplates] = useState([])
+  const [loadingWaTemplates, setLoadingWaTemplates] = useState(false)
+  const [waTemplatesError, setWaTemplatesError] = useState(null)
+
   // Estados para modelos de IA (nó ai_router)
   const [aiModels, setAiModels] = useState([])
   const [loadingAiModels, setLoadingAiModels] = useState(false)
@@ -302,6 +310,79 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
     fetchKnowledgeBases() // recarrega lista ao fechar
   }
 
+  // Busca contas WhatsApp da API do MonitChat
+  const fetchWhatsAppAccounts = async () => {
+    setLoadingWaAccounts(true)
+    setWaAccountsError(null)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(
+        'https://api-v2.monitchat.com/api/v1/social/whatsapp',
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      const accountsList = (result.data || []).filter(
+        (acc) => acc.whatsapp_account_key
+      )
+      setWaAccounts(accountsList)
+
+      // Se já tem account_id selecionado, busca templates
+      if (data.account_id) {
+        fetchWhatsAppTemplates(data.account_id)
+      }
+    } catch (error) {
+      console.error('Error fetching WhatsApp accounts:', error)
+      setWaAccountsError(error.message || 'Erro ao buscar contas WhatsApp')
+    } finally {
+      setLoadingWaAccounts(false)
+    }
+  }
+
+  // Busca templates WhatsApp de uma conta específica
+  const fetchWhatsAppTemplates = async (accountId) => {
+    setLoadingWaTemplates(true)
+    setWaTemplatesError(null)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(
+        `https://api-v2.monitchat.com/api/v1/social/${accountId}/templates`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      const templates = (result.templates || []).filter(
+        (t) => t.status?.toUpperCase() === 'APPROVED'
+      )
+      // Ordena por nome
+      templates.sort((a, b) => a.name.localeCompare(b.name))
+      setWaTemplates(templates)
+    } catch (error) {
+      console.error('Error fetching WhatsApp templates:', error)
+      setWaTemplatesError(error.message || 'Erro ao buscar templates')
+    } finally {
+      setLoadingWaTemplates(false)
+    }
+  }
+
   const fetchTicketStatuses = async () => {
     setLoadingTicketStatuses(true)
     setTicketStatusesError(null)
@@ -464,6 +545,11 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
     // Carrega status de tickets se for set_ticket_status
     if (node.type === 'set_ticket_status') {
       fetchTicketStatuses()
+    }
+
+    // Carrega contas WhatsApp se for whatsapp_template
+    if (node.type === 'whatsapp_template') {
+      fetchWhatsAppAccounts()
     }
   }, [node.type, node.id])
 
@@ -2497,6 +2583,362 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
             </div>
           </>
         )
+
+      case 'whatsapp_template': {
+        // Extrai variáveis de um template component (suporta {{1}} e {{nome}})
+        const extractVariables = (text) => {
+          if (!text) return []
+          const matches = text.match(/\{\{(\w+)\}\}/g)
+          if (!matches) return []
+          return [...new Set(matches)].map((m) => {
+            const key = m.replace(/[{}]/g, '')
+            return { placeholder: m, index: key }
+          })
+        }
+
+        // Template selecionado
+        const selectedTemplate = waTemplates.find(
+          (t) => t.name === data.template_name && t.language === data.template_language
+        )
+
+        // Componentes do template
+        const headerComp = selectedTemplate?.components?.find((c) => c.type === 'HEADER')
+        const bodyComp = selectedTemplate?.components?.find((c) => c.type === 'BODY')
+        const footerComp = selectedTemplate?.components?.find((c) => c.type === 'FOOTER')
+        const buttonsComp = selectedTemplate?.components?.find((c) => c.type === 'BUTTONS')
+
+        const headerVars = headerComp ? extractVariables(headerComp.text) : []
+        const bodyVars = bodyComp ? extractVariables(bodyComp.text) : []
+
+        return (
+          <>
+            {/* Seleção de conta WhatsApp */}
+            <div className="form-group">
+              <label>Conta WhatsApp</label>
+              {loadingWaAccounts ? (
+                <div style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--text-dim)', backgroundColor: 'var(--bg-input)', borderRadius: '4px' }}>
+                  Carregando contas...
+                </div>
+              ) : waAccountsError ? (
+                <>
+                  <div style={{ padding: '0.75rem', marginBottom: '0.5rem', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '4px', fontSize: '0.85rem' }}>
+                    ⚠️ {waAccountsError}
+                  </div>
+                  <input
+                    type="number"
+                    value={data.account_id || ''}
+                    onChange={(e) => updateData('account_id', parseInt(e.target.value))}
+                    placeholder="Digite o ID da conta manualmente"
+                  />
+                </>
+              ) : waAccounts.length > 0 ? (
+                <>
+                  <select
+                    value={data.account_id || ''}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      const accountId = value ? parseInt(value) : null
+                      updateData('account_id', accountId)
+                      // Preenche account_number com phone_number da conta
+                      const selectedAcc = waAccounts.find((a) => a.id === accountId)
+                      updateData('account_number', selectedAcc?.phone_number || '')
+                      // Limpa template selecionado ao mudar conta
+                      updateData('template_name', null)
+                      updateData('template_language', null)
+                      updateData('template_id', null)
+                      updateData('header_params', {})
+                      updateData('body_params', {})
+                      setWaTemplates([])
+                      if (accountId) {
+                        fetchWhatsAppTemplates(accountId)
+                      }
+                    }}
+                    style={{ fontSize: '0.9rem' }}
+                  >
+                    <option value="">Selecione uma conta</option>
+                    {waAccounts.map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.phone_number} - {acc.company || 'Sem nome'} (ID: {acc.id})
+                      </option>
+                    ))}
+                  </select>
+                  <small style={{ color: 'var(--text-dim)', display: 'block', marginTop: '0.5rem' }}>
+                    {waAccounts.length} conta{waAccounts.length !== 1 ? 's' : ''} disponível{waAccounts.length !== 1 ? 'is' : ''}
+                  </small>
+                </>
+              ) : (
+                <div style={{ padding: '0.75rem', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '4px', fontSize: '0.85rem' }}>
+                  ⚠️ Nenhuma conta WhatsApp com account_key encontrada
+                </div>
+              )}
+            </div>
+
+            {/* Account Number (editável, preenchido automaticamente) */}
+            {data.account_id && (
+              <div className="form-group">
+                <label>Account Number (número de envio)</label>
+                <input
+                  type="text"
+                  value={data.account_number || ''}
+                  onChange={(e) => updateData('account_number', e.target.value)}
+                  placeholder="Ex: 552730109500"
+                />
+                <small style={{ color: 'var(--text-dim)', display: 'block', marginTop: '0.25rem' }}>
+                  Preenchido automaticamente pela conta selecionada. Altere para usar um número diferente no envio. Se preenchido, sobrescreve o account_number do contexto.
+                </small>
+              </div>
+            )}
+
+            {/* Seleção de template */}
+            {data.account_id && (
+              <div className="form-group">
+                <label>Template</label>
+                {loadingWaTemplates ? (
+                  <div style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--text-dim)', backgroundColor: 'var(--bg-input)', borderRadius: '4px' }}>
+                    Carregando templates...
+                  </div>
+                ) : waTemplatesError ? (
+                  <>
+                    <div style={{ padding: '0.75rem', marginBottom: '0.5rem', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '4px', fontSize: '0.85rem' }}>
+                      ⚠️ {waTemplatesError}
+                    </div>
+                    <input
+                      type="text"
+                      value={data.template_name || ''}
+                      onChange={(e) => updateData('template_name', e.target.value)}
+                      placeholder="Digite o nome do template manualmente"
+                    />
+                  </>
+                ) : waTemplates.length > 0 ? (
+                  <>
+                    <select
+                      value={data.template_name && data.template_language ? `${data.template_name}|${data.template_language}` : ''}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        if (!value) {
+                          updateData('template_name', null)
+                          updateData('template_language', null)
+                          updateData('template_id', null)
+                          updateData('header_params', {})
+                          updateData('body_params', {})
+                          return
+                        }
+                        const [name, lang] = value.split('|')
+                        const tmpl = waTemplates.find((t) => t.name === name && t.language === lang)
+                        updateData('template_name', name)
+                        updateData('template_language', lang)
+                        updateData('template_id', tmpl?.id || null)
+                        updateData('header_params', {})
+                        updateData('body_params', {})
+                      }}
+                      style={{ fontSize: '0.9rem' }}
+                    >
+                      <option value="">Selecione um template</option>
+                      {waTemplates.map((tmpl) => {
+                        const categoryIcons = { MARKETING: '📢', UTILITY: '🔧', AUTHENTICATION: '🔐' }
+                        return (
+                          <option key={`${tmpl.name}-${tmpl.language}`} value={`${tmpl.name}|${tmpl.language}`}>
+                            {categoryIcons[tmpl.category] || '📄'} {tmpl.name} ({tmpl.language})
+                          </option>
+                        )
+                      })}
+                    </select>
+                    <small style={{ color: 'var(--text-dim)', display: 'block', marginTop: '0.5rem' }}>
+                      {waTemplates.length} template{waTemplates.length !== 1 ? 's' : ''} aprovado{waTemplates.length !== 1 ? 's' : ''}
+                    </small>
+                  </>
+                ) : (
+                  <div style={{ padding: '0.75rem', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '4px', fontSize: '0.85rem' }}>
+                    ⚠️ Nenhum template aprovado encontrado para esta conta
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Preview do template */}
+            {selectedTemplate && (
+              <div className="form-group">
+                <label>Preview do Template</label>
+                <div style={{
+                  padding: '0.75rem',
+                  backgroundColor: 'var(--bg-input)',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-primary)',
+                }}>
+                  {/* Categoria e idioma */}
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      padding: '0.15rem 0.4rem',
+                      borderRadius: '4px',
+                      backgroundColor: selectedTemplate.category === 'MARKETING' ? 'rgba(59,130,246,0.15)' : selectedTemplate.category === 'UTILITY' ? 'rgba(34,197,94,0.15)' : 'rgba(249,115,22,0.15)',
+                      color: selectedTemplate.category === 'MARKETING' ? '#60a5fa' : selectedTemplate.category === 'UTILITY' ? '#4ade80' : '#fb923c',
+                      fontWeight: 600,
+                    }}>
+                      {selectedTemplate.category}
+                    </span>
+                    <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem', borderRadius: '4px', backgroundColor: 'var(--bg-hover)', color: 'var(--text-muted)' }}>
+                      {selectedTemplate.language}
+                    </span>
+                  </div>
+
+                  {/* Header */}
+                  {headerComp && (
+                    <div style={{ marginBottom: '0.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {headerComp.format === 'TEXT' && <div>📝 {headerComp.text}</div>}
+                      {headerComp.format === 'IMAGE' && <div>🖼️ Header: Imagem</div>}
+                      {headerComp.format === 'VIDEO' && <div>🎬 Header: Vídeo</div>}
+                      {headerComp.format === 'DOCUMENT' && <div>📄 Header: Documento</div>}
+                    </div>
+                  )}
+
+                  {/* Body */}
+                  {bodyComp && (
+                    <div style={{ whiteSpace: 'pre-wrap', marginBottom: '0.5rem', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+                      {bodyComp.text}
+                    </div>
+                  )}
+
+                  {/* Footer */}
+                  {footerComp && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: '0.5rem' }}>
+                      {footerComp.text}
+                    </div>
+                  )}
+
+                  {/* Buttons */}
+                  {buttonsComp && buttonsComp.buttons && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginTop: '0.5rem' }}>
+                      {buttonsComp.buttons.map((btn, idx) => (
+                        <span key={idx} style={{
+                          padding: '0.3rem 0.6rem',
+                          borderRadius: '16px',
+                          border: '1px solid var(--border)',
+                          fontSize: '0.75rem',
+                          backgroundColor: 'var(--bg-surface)',
+                          color: 'var(--text-secondary)',
+                        }}>
+                          {btn.type === 'URL' ? '🔗' : btn.type === 'OTP' ? '🔑' : btn.type === 'PHONE_NUMBER' ? '📞' : '↩️'} {btn.text}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Parâmetros do Header (se TEXT com variáveis) */}
+            {headerComp && headerComp.format === 'TEXT' && headerVars.length > 0 && (
+              <div className="form-group">
+                <label>Parâmetros do Header</label>
+                <small style={{ color: 'var(--text-dim)', display: 'block', marginBottom: '0.5rem' }}>
+                  Preencha os valores para as variáveis do header. Use <code>{'${{campo}}'}</code> para variáveis do contexto.
+                </small>
+                {headerVars.map((v) => {
+                  const namedParam = headerComp.example?.header_text_named_params?.find((p) => p.param_name === v.index)
+                  const positionalExample = headerComp.example?.header_text?.[parseInt(v.index) - 1]
+                  const exampleValue = namedParam?.example || positionalExample
+                  return (
+                  <div key={`header-${v.index}`} style={{ marginBottom: '0.5rem' }}>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      {`{{${v.index}}}`}
+                      {exampleValue && (
+                        <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                          {' '} — ex: {exampleValue}
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="text"
+                      value={(data.header_params || {})[v.index] || ''}
+                      onChange={(e) => {
+                        const params = { ...(data.header_params || {}), [v.index]: e.target.value }
+                        updateData('header_params', params)
+                      }}
+                      placeholder={`Valor para {{${v.index}}}`}
+                    />
+                  </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Header de mídia (IMAGE, VIDEO, DOCUMENT) */}
+            {headerComp && (headerComp.format === 'IMAGE' || headerComp.format === 'VIDEO' || headerComp.format === 'DOCUMENT') && (
+              <div className="form-group">
+                <label>URL da Mídia do Header ({headerComp.format === 'IMAGE' ? 'Imagem' : headerComp.format === 'VIDEO' ? 'Vídeo' : 'Documento'})</label>
+                <input
+                  type="text"
+                  value={data.header_media_url || ''}
+                  onChange={(e) => updateData('header_media_url', e.target.value)}
+                  placeholder={`URL da ${headerComp.format === 'IMAGE' ? 'imagem' : headerComp.format === 'VIDEO' ? 'vídeo' : 'documento'}`}
+                />
+                {headerComp.format === 'DOCUMENT' && (
+                  <input
+                    type="text"
+                    value={data.header_media_filename || ''}
+                    onChange={(e) => updateData('header_media_filename', e.target.value)}
+                    placeholder="Nome do arquivo (ex: documento.pdf)"
+                    style={{ marginTop: '0.5rem' }}
+                  />
+                )}
+                <small style={{ color: 'var(--text-dim)', display: 'block', marginTop: '0.25rem' }}>
+                  Use <code>{'${{campo}}'}</code> para variáveis do contexto.
+                </small>
+              </div>
+            )}
+
+            {/* Parâmetros do Body */}
+            {bodyVars.length > 0 && (
+              <div className="form-group">
+                <label>Parâmetros do Body</label>
+                <small style={{ color: 'var(--text-dim)', display: 'block', marginBottom: '0.5rem' }}>
+                  Preencha os valores para as variáveis do corpo. Use <code>{'${{campo}}'}</code> para variáveis do contexto.
+                </small>
+                {bodyVars.map((v) => {
+                  const namedParam = bodyComp.example?.body_text_named_params?.find((p) => p.param_name === v.index)
+                  const positionalExample = bodyComp.example?.body_text?.[0]?.[parseInt(v.index) - 1]
+                  const exampleValue = namedParam?.example || positionalExample
+                  return (
+                  <div key={`body-${v.index}`} style={{ marginBottom: '0.5rem' }}>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      {`{{${v.index}}}`}
+                      {exampleValue && (
+                        <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                          {' '} — ex: {exampleValue}
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="text"
+                      value={(data.body_params || {})[v.index] || ''}
+                      onChange={(e) => {
+                        const params = { ...(data.body_params || {}), [v.index]: e.target.value }
+                        updateData('body_params', params)
+                      }}
+                      placeholder={`Valor para {{${v.index}}}`}
+                    />
+                  </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Rótulo */}
+            <div className="form-group">
+              <label>Rótulo (opcional)</label>
+              <input
+                type="text"
+                value={data.label || ''}
+                onChange={(e) => updateData('label', e.target.value)}
+                placeholder="Ex: Enviar confirmação"
+              />
+            </div>
+          </>
+        )
+      }
 
       case 'jump_to':
         // Filtra o próprio nó da lista de destinos
@@ -5204,9 +5646,9 @@ Regras:
             <div style={{
               marginTop: '1.5rem',
               padding: '1rem',
-              border: '1px solid var(--border-color, #333)',
+              border: '1px solid var(--border)',
               borderRadius: '8px',
-              backgroundColor: 'var(--bg-secondary, #1a1a2e)',
+              backgroundColor: 'var(--bg-input)',
             }}>
               <div
                 style={{
@@ -5215,7 +5657,7 @@ Regras:
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   fontWeight: 'bold',
-                  color: 'var(--text-primary, #e0e0e0)',
+                  color: 'var(--text-primary)',
                 }}
                 onClick={() => {
                   const el = document.getElementById('retry-config')
@@ -5223,7 +5665,7 @@ Regras:
                 }}
               >
                 <span>🔄 Limite de Tentativas</span>
-                <span style={{ fontSize: '0.8rem', color: '#888' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
                   {data.max_retries > 0 ? `${data.max_retries} tentativas` : 'Desabilitado'}
                 </span>
               </div>
@@ -5238,7 +5680,7 @@ Regras:
                     onChange={(e) => updateData('max_retries', parseInt(e.target.value) || 0)}
                     placeholder="0 = desabilitado"
                   />
-                  <small style={{ color: '#888' }}>
+                  <small style={{ color: 'var(--text-dim)' }}>
                     Se o usuário ficar preso neste nó por N tentativas, será redirecionado. 0 = sem limite.
                   </small>
                 </div>

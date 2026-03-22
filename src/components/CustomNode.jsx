@@ -25,6 +25,7 @@ const nodeIcons = {
   expression: '📝',
   data_structure: '📊',
   audio_transcription: '🎤',
+  whatsapp_template: '📨',
 }
 
 const nodeLabels = {
@@ -51,6 +52,7 @@ const nodeLabels = {
   expression: 'Expressão',
   data_structure: 'Dados',
   audio_transcription: 'Transcrição',
+  whatsapp_template: 'Template WA',
 }
 
 function CustomNode({ data, type, selected, id }) {
@@ -70,6 +72,7 @@ function CustomNode({ data, type, selected, id }) {
     if (data.error_message) lines.push(`Erro: ${data.error_message}`)
     if (data.department_id) lines.push(`Dept ID: ${data.department_id}`)
     if (data.status_id) lines.push(`Status ID: ${data.status_id}`)
+    if (data.template_name) lines.push(`Template: ${data.template_name}`)
     if (data.target_node_id) lines.push(`Destino: ${data.target_node_label || data.target_node_id}`)
     if (data.url) lines.push(`URL: ${data.url}`)
     if (data.method) lines.push(`Método: ${data.method}`)
@@ -444,6 +447,31 @@ function CustomNode({ data, type, selected, id }) {
             {data.label || 'Alterar Status'}
             <br />
             <small>Status: {data.status_id || 'N/A'}</small>
+          </div>
+        )
+      case 'whatsapp_template':
+        return (
+          <div className="node-content" style={{ minWidth: '150px' }}>
+            <div style={{ marginBottom: '0.25rem', fontWeight: '600' }}>
+              {data.label || 'Template WhatsApp'}
+            </div>
+            {data.template_name ? (
+              <>
+                <small style={{ color: '#4CAF50' }}>
+                  📨 {data.template_name}
+                </small>
+                {data.template_language && (
+                  <>
+                    <br />
+                    <small style={{ color: 'var(--node-content-dim)' }}>
+                      🌐 {data.template_language}
+                    </small>
+                  </>
+                )}
+              </>
+            ) : (
+              <small style={{ color: '#ff6b6b' }}>⚠️ Nenhum template selecionado</small>
+            )}
           </div>
         )
       case 'media':

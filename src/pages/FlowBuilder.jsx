@@ -48,6 +48,7 @@ const nodeTypes = {
   delay: CustomNode,
   transfer: CustomNode,
   set_ticket_status: CustomNode,
+  whatsapp_template: CustomNode,
   media: CustomNode,
   jump_to: CustomNode,
   loop: CustomNode,

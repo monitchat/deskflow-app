@@ -83,6 +83,12 @@ const nodeDefinitions = [
     description: 'Altera o status do ticket/atendimento',
   },
   {
+    type: 'whatsapp_template',
+    label: 'Template WhatsApp',
+    icon: '📨',
+    description: 'Envia um template aprovado do WhatsApp',
+  },
+  {
     type: 'media',
     label: 'Enviar Mídia',
     icon: '📎',
