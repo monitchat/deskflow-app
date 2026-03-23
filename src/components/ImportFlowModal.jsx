@@ -1,26 +1,15 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import api from '../config/axios'
 import ApiKeyField from './ApiKeyField'
 
 const PROVIDERS = [
-  {
-    value: 'openai',
-    label: 'OpenAI',
-    models: [
-      { value: 'gpt-4o', label: 'GPT-4o (recomendado para PDF)' },
-      { value: 'gpt-4o-mini', label: 'GPT-4o Mini (mais rapido)' },
-    ],
-  },
-  {
-    value: 'gemini',
-    label: 'Google Gemini',
-    models: [
-      { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-      { value: 'gemini-2.5-flash-preview-05-20', label: 'Gemini 2.5 Flash' },
-      { value: 'gemini-2.5-pro-preview-05-06', label: 'Gemini 2.5 Pro (recomendado)' },
-    ],
-  },
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'gemini', label: 'Google Gemini' },
 ]
+
+// Vision-capable models to prioritize in filtered results
+const OPENAI_VISION_KEYWORDS = ['gpt-4o', 'gpt-4-turbo', 'gpt-4-vision', 'gpt-5', 'o1', 'o3', 'o4']
+const GEMINI_VISION_KEYWORDS = ['gemini']
 
 const PDF_PROGRESS = [
   'Convertendo PDF em imagens...',
@@ -65,23 +54,169 @@ function ImportFlowModal({ onClose, onSuccess }) {
   const [prompt, setPrompt] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [provider, setProvider] = useState('openai')
-  const [model, setModel] = useState('gpt-4o')
+  const [model, setModel] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [progressIdx, setProgressIdx] = useState(0)
   const [dragOver, setDragOver] = useState(false)
+  const [availableModels, setAvailableModels] = useState([])
+  const [loadingModels, setLoadingModels] = useState(false)
+  const [modelsError, setModelsError] = useState(null)
+  const [pdfCustomPrompt, setPdfCustomPrompt] = useState('')
+  const [showCustomPrompt, setShowCustomPrompt] = useState(false)
   const fileInputRef = useRef(null)
   const progressTimerRef = useRef(null)
 
-  const selectedProvider = PROVIDERS.find((p) => p.value === provider)
   const progressMessages = mode === 'pdf' ? PDF_PROGRESS : PROMPT_PROGRESS
+
+  // Resolve variable references to actual API key values
+  const resolveApiKey = async (key) => {
+    if (!key) return null
+
+    // ${{secret.NAME}} - resolve via global settings
+    if (key.includes('${{secret.')) {
+      const match = key.match(/\$\{\{secret\.(.+?)\}\}/)
+      if (match) {
+        try {
+          const res = await api.get(`/api/v1/settings/secrets/${match[1]}/resolve`)
+          if (res.data.success && res.data.data) {
+            return res.data.data
+          }
+        } catch {
+          // fall through
+        }
+      }
+      return null
+    }
+
+    // ${{env.NAME}} - cannot resolve on frontend
+    if (key.includes('${{env.')) {
+      return null
+    }
+
+    return key
+  }
+
+  // Fetch OpenAI models
+  const fetchOpenAIModels = async (resolvedKey) => {
+    setLoadingModels(true)
+    setModelsError(null)
+    try {
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${resolvedKey}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      const modelsList = result.data || []
+
+      // Filter vision-capable GPT models
+      const visionModels = modelsList
+        .filter(m => OPENAI_VISION_KEYWORDS.some(kw => m.id.includes(kw)))
+        .map(m => m.id)
+        .sort()
+        .reverse()
+
+      setAvailableModels(visionModels)
+      if (visionModels.length > 0 && !model) {
+        setModel(visionModels[0])
+      }
+    } catch (error) {
+      console.error('Error fetching OpenAI models:', error)
+      setModelsError(error.message || 'Erro ao buscar modelos da OpenAI')
+      setAvailableModels([])
+    } finally {
+      setLoadingModels(false)
+    }
+  }
+
+  // Fetch Gemini models
+  const fetchGeminiModels = async (resolvedKey) => {
+    setLoadingModels(true)
+    setModelsError(null)
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${resolvedKey}`,
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      const modelsList = result.models || []
+
+      // Filter vision-capable models (those supporting generateContent)
+      const visionModels = modelsList
+        .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+        .map(m => m.name.replace('models/', ''))
+        .sort()
+        .reverse()
+
+      setAvailableModels(visionModels)
+      if (visionModels.length > 0 && !model) {
+        setModel(visionModels[0])
+      }
+    } catch (error) {
+      console.error('Error fetching Gemini models:', error)
+      setModelsError(error.message || 'Erro ao buscar modelos do Gemini')
+      setAvailableModels([])
+    } finally {
+      setLoadingModels(false)
+    }
+  }
+
+  // Fetch models when apiKey or provider changes
+  useEffect(() => {
+    if (!apiKey || apiKey.trim().length < 5) {
+      setAvailableModels([])
+      setModelsError(null)
+      return
+    }
+
+    // env vars cannot be resolved on frontend
+    if (apiKey.includes('${{env.')) {
+      setAvailableModels([])
+      setModelsError(null)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      const resolvedKey = await resolveApiKey(apiKey)
+      if (!resolvedKey) {
+        setAvailableModels([])
+        if (apiKey.includes('${{')) {
+          setModelsError('Nao foi possivel resolver a variavel. Digite o modelo manualmente.')
+        }
+        return
+      }
+
+      if (provider === 'openai') {
+        fetchOpenAIModels(resolvedKey)
+      } else if (provider === 'gemini') {
+        fetchGeminiModels(resolvedKey)
+      }
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [apiKey, provider])
 
   const handleProviderChange = (newProvider) => {
     setProvider(newProvider)
-    const prov = PROVIDERS.find((p) => p.value === newProvider)
-    if (prov && prov.models.length > 0) {
-      setModel(prov.models[0].value)
-    }
+    setModel('')
+    setAvailableModels([])
+    setModelsError(null)
   }
 
   const handleFileDrop = useCallback((e) => {
@@ -148,6 +283,9 @@ function ImportFlowModal({ onClose, onSuccess }) {
         formData.append('api_key', apiKey)
         formData.append('provider', provider)
         formData.append('model', model)
+        if (pdfCustomPrompt.trim()) {
+          formData.append('custom_prompt', pdfCustomPrompt.trim())
+        }
 
         response = await api.post('/api/v1/flows/import-pdf', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -250,40 +388,26 @@ function ImportFlowModal({ onClose, onSuccess }) {
         }}>
           {[
             { key: 'prompt', icon: '✨', label: 'Descrever com texto' },
-            { key: 'pdf', icon: '📄', label: 'Importar PDF', disabled: true },
+            { key: 'pdf', icon: '📄', label: 'Importar PDF' },
           ].map((tab) => (
             <button
               key={tab.key}
-              onClick={() => { if (!tab.disabled) { setMode(tab.key); setError(null) } }}
-              disabled={tab.disabled}
+              onClick={() => { setMode(tab.key); setError(null) }}
               style={{
                 flex: 1,
                 padding: '0.6rem',
                 fontSize: '0.82rem',
                 fontWeight: 600,
                 backgroundColor: 'transparent',
-                color: tab.disabled ? 'var(--text-dim, #475569)' : mode === tab.key ? '#7C3AED' : 'var(--text-dim, #94a3b8)',
+                color: mode === tab.key ? '#7C3AED' : 'var(--text-dim, #94a3b8)',
                 border: 'none',
-                borderBottom: mode === tab.key && !tab.disabled ? '2px solid #7C3AED' : '2px solid transparent',
-                cursor: tab.disabled ? 'not-allowed' : 'pointer',
+                borderBottom: mode === tab.key ? '2px solid #7C3AED' : '2px solid transparent',
+                cursor: 'pointer',
                 marginBottom: '-2px',
                 transition: 'all 0.15s',
-                opacity: tab.disabled ? 0.5 : 1,
-                position: 'relative',
               }}
             >
               {tab.icon} {tab.label}
-              {tab.disabled && (
-                <span style={{
-                  fontSize: '0.6rem',
-                  backgroundColor: '#7C3AED',
-                  color: '#fff',
-                  padding: '0.1rem 0.35rem',
-                  borderRadius: '4px',
-                  marginLeft: '0.4rem',
-                  verticalAlign: 'middle',
-                }}>Em breve</span>
-              )}
             </button>
           ))}
         </div>
@@ -371,6 +495,63 @@ function ImportFlowModal({ onClose, onSuccess }) {
             </div>
           )}
 
+          {/* Custom Prompt (PDF mode) */}
+          {mode === 'pdf' && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => setShowCustomPrompt(!showCustomPrompt)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#7C3AED',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  padding: '0.3rem 0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  fontWeight: 500,
+                }}
+              >
+                <span style={{
+                  transform: showCustomPrompt ? 'rotate(90deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s',
+                  display: 'inline-block',
+                }}>▶</span>
+                ✏️ Prompt personalizado (opcional)
+              </button>
+              {showCustomPrompt && (
+                <div style={{ marginTop: '0.4rem' }}>
+                  <textarea
+                    value={pdfCustomPrompt}
+                    onChange={(e) => setPdfCustomPrompt(e.target.value)}
+                    placeholder="Deixe vazio para usar o prompt padrão. Aqui você pode adicionar instruções extras para a IA interpretar o PDF, como: 'Os blocos verdes são mensagens, os azuis são condições, ignore o cabeçalho da empresa...'"
+                    rows={4}
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem',
+                      fontSize: '0.82rem',
+                      backgroundColor: 'var(--bg-secondary, #1e293b)',
+                      color: 'var(--text, #e2e8f0)',
+                      border: '1px solid var(--border, #475569)',
+                      borderRadius: '8px',
+                      resize: 'vertical',
+                      outline: 'none',
+                      fontFamily: 'inherit',
+                      lineHeight: 1.4,
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#7C3AED'}
+                    onBlur={(e) => e.target.style.borderColor = 'var(--border, #475569)'}
+                  />
+                  <small style={{ color: 'var(--text-dim, #94a3b8)', fontSize: '0.72rem' }}>
+                    Se preenchido, substitui o prompt padrão de interpretação. Descreva como a IA deve interpretar os elementos visuais do seu PDF.
+                  </small>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Provider */}
           <div style={{ marginBottom: '0.75rem' }}>
             <label style={labelStyle}>Provedor</label>
@@ -401,16 +582,83 @@ function ImportFlowModal({ onClose, onSuccess }) {
 
           {/* Model */}
           <div style={{ marginBottom: '0.75rem' }}>
-            <label style={labelStyle}>Modelo</label>
-            <select
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              style={inputStyle}
-            >
-              {selectedProvider?.models.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
+            <label style={labelStyle}>
+              Modelo
+              {loadingModels && (
+                <span style={{
+                  marginLeft: '0.5rem',
+                  fontSize: '0.75rem',
+                  color: '#a78bfa',
+                }}>
+                  Carregando modelos...
+                </span>
+              )}
+            </label>
+            {availableModels.length > 0 ? (
+              <>
+                <select
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  disabled={loadingModels}
+                  style={{
+                    ...inputStyle,
+                    opacity: loadingModels ? 0.6 : 1,
+                  }}
+                >
+                  {availableModels.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                <small style={{
+                  display: 'block',
+                  fontSize: '0.72rem',
+                  color: 'var(--text-dim, #64748b)',
+                  marginTop: '0.2rem',
+                }}>
+                  {availableModels.length} modelo{availableModels.length !== 1 ? 's' : ''} disponivel{availableModels.length !== 1 ? 'is' : ''}
+                </small>
+              </>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  disabled={loadingModels}
+                  placeholder={
+                    loadingModels
+                      ? 'Buscando modelos disponiveis...'
+                      : provider === 'openai'
+                        ? 'gpt-4o'
+                        : 'gemini-2.0-flash'
+                  }
+                  style={{
+                    ...inputStyle,
+                    opacity: loadingModels ? 0.6 : 1,
+                  }}
+                />
+                {modelsError && (
+                  <small style={{
+                    display: 'block',
+                    fontSize: '0.72rem',
+                    color: '#f59e0b',
+                    marginTop: '0.2rem',
+                  }}>
+                    {modelsError}
+                  </small>
+                )}
+                {!loadingModels && !modelsError && apiKey && (
+                  <small style={{
+                    display: 'block',
+                    fontSize: '0.72rem',
+                    color: 'var(--text-dim, #64748b)',
+                    marginTop: '0.2rem',
+                  }}>
+                    Digite o nome do modelo manualmente
+                  </small>
+                )}
+              </>
+            )}
           </div>
 
           {/* API Key */}
