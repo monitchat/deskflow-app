@@ -148,7 +148,7 @@ function ScheduleExecutionHistory({ flowId, scheduleId, onExecuteNow }) {
           </div>
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div style={{ overflowX: 'auto', maxHeight: '350px', overflowY: 'auto' }}>
           {/* Table header */}
           <div style={{
             display: 'grid',
@@ -173,12 +173,12 @@ function ScheduleExecutionHistory({ flowId, scheduleId, onExecuteNow }) {
           {/* Table rows */}
           {history.map((entry, idx) => {
             const status = STATUS_MAP[entry.status] || STATUS_MAP.failed
-            const hasErrors = entry.error_details && entry.error_details.length > 0
+            const hasDetails = entry.error_details && entry.error_details.length > 0
             const isExpanded = expandedRow === (entry.id || idx)
             return (
               <div key={entry.id || idx}>
                 <div
-                  onClick={() => hasErrors && setExpandedRow(isExpanded ? null : (entry.id || idx))}
+                  onClick={() => hasDetails && setExpandedRow(isExpanded ? null : (entry.id || idx))}
                   style={{
                     display: 'grid',
                     gridTemplateColumns: '1fr 80px 70px 60px 60px 60px',
@@ -187,10 +187,10 @@ function ScheduleExecutionHistory({ flowId, scheduleId, onExecuteNow }) {
                     fontSize: '0.78rem',
                     borderBottom: isExpanded ? 'none' : '1px solid var(--border, #334155)',
                     alignItems: 'center',
-                    cursor: hasErrors ? 'pointer' : 'default',
+                    cursor: hasDetails ? 'pointer' : 'default',
                     transition: 'background-color 0.1s',
                   }}
-                  onMouseEnter={(e) => { if (hasErrors) e.currentTarget.style.backgroundColor = 'var(--bg-hover, #1a2540)' }}
+                  onMouseEnter={(e) => { if (hasDetails) e.currentTarget.style.backgroundColor = 'var(--bg-hover, #1a2540)' }}
                   onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
                 >
                   <div style={{
@@ -201,7 +201,7 @@ function ScheduleExecutionHistory({ flowId, scheduleId, onExecuteNow }) {
                     alignItems: 'center',
                     gap: '0.3rem',
                   }}>
-                    {hasErrors && (
+                    {hasDetails && (
                       <span style={{ fontSize: '0.6rem', color: 'var(--text-dim)', transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
                         ▶
                       </span>
@@ -251,49 +251,64 @@ function ScheduleExecutionHistory({ flowId, scheduleId, onExecuteNow }) {
                   </div>
                 </div>
 
-                {/* Detalhes de erro expandidos */}
-                {isExpanded && hasErrors && (
+                {/* Detalhes expandidos por destinatário */}
+                {isExpanded && hasDetails && (
                   <div style={{
                     padding: '0.5rem 0.6rem 0.6rem 1.5rem',
                     borderBottom: '1px solid var(--border, #334155)',
                     backgroundColor: 'var(--bg-input, #0f172a)',
                     fontSize: '0.73rem',
                   }}>
-                    {entry.error_details.map((err, i) => (
-                      <div key={i} style={{
-                        padding: '0.35rem 0',
-                        borderBottom: i < entry.error_details.length - 1 ? '1px solid var(--border, #334155)' : 'none',
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
-                          <span style={{ color: err.failed > 0 || err.error ? '#ef4444' : '#22c55e', fontSize: '0.7rem' }}>
-                            {err.failed > 0 || err.error ? '✗' : '✓'}
-                          </span>
-                          <span style={{ color: 'var(--text-secondary, #cbd5e1)', fontFamily: 'monospace' }}>
-                            {err.target || 'N/A'}
-                          </span>
-                          {err.sent > 0 && (
-                            <span style={{ color: '#22c55e', fontSize: '0.65rem' }}>
-                              {err.sent} enviado{err.sent !== 1 ? 's' : ''}
+                    {entry.error_details.map((item, i) => {
+                      const isSuccess = item.success !== false && !item.error
+                      return (
+                        <div key={i} style={{
+                          padding: '0.4rem 0',
+                          borderBottom: i < entry.error_details.length - 1 ? '1px solid var(--border, #334155)' : 'none',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <span style={{
+                              width: '16px', height: '16px', borderRadius: '50%',
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: '0.6rem', fontWeight: 700, flexShrink: 0,
+                              backgroundColor: isSuccess ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                              color: isSuccess ? '#22c55e' : '#ef4444',
+                            }}>
+                              {isSuccess ? '✓' : '✗'}
                             </span>
-                          )}
-                          {err.failed > 0 && (
-                            <span style={{ color: '#ef4444', fontSize: '0.65rem' }}>
-                              {err.failed} falha{err.failed !== 1 ? 's' : ''}
+                            <span style={{ color: 'var(--text-secondary, #cbd5e1)', fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                              {item.target || 'N/A'}
                             </span>
+                            <span style={{
+                              fontSize: '0.65rem',
+                              padding: '0.1rem 0.35rem',
+                              borderRadius: '8px',
+                              backgroundColor: isSuccess ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                              color: isSuccess ? '#22c55e' : '#ef4444',
+                              fontWeight: 600,
+                            }}>
+                              {isSuccess ? 'Enviado' : 'Falhou'}
+                            </span>
+                            {item.sent > 0 && (
+                              <span style={{ color: 'var(--text-dim)', fontSize: '0.65rem' }}>
+                                {item.sent} msg
+                              </span>
+                            )}
+                          </div>
+                          {item.error && (
+                            <div style={{
+                              color: '#ef4444',
+                              fontSize: '0.7rem',
+                              padding: '0.25rem 0 0 1.4rem',
+                              wordBreak: 'break-word',
+                              lineHeight: 1.4,
+                            }}>
+                              {item.error}
+                            </div>
                           )}
                         </div>
-                        {err.error && (
-                          <div style={{
-                            color: '#ef4444',
-                            fontSize: '0.7rem',
-                            padding: '0.2rem 0 0 1rem',
-                            wordBreak: 'break-word',
-                          }}>
-                            {err.error}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>

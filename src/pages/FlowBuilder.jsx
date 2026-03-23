@@ -1458,6 +1458,7 @@ function FlowBuilderInner() {
                       { type: 'set_context', icon: '💾', label: 'Salvar Contexto' },
                       { type: 'delay', icon: '⏱️', label: 'Delay' },
                       { type: 'transfer', icon: '👤', label: 'Transferir' },
+                      { type: 'whatsapp_template', icon: '📨', label: 'Template WhatsApp' },
                       { type: 'media', icon: '📎', label: 'Mídia' },
                       { type: 'loop', icon: '🔄', label: 'Loop' },
                       { type: 'expression', icon: '📝', label: 'Expressão' },
@@ -1477,14 +1478,14 @@ function FlowBuilderInner() {
                         padding: '0.5rem',
                         border: 'none',
                         backgroundColor: 'transparent',
-                        color: '#e2e8f0',
+                        color: 'var(--text-primary, #f1f5f9)',
                         cursor: 'pointer',
                         fontSize: '0.85rem',
                         borderRadius: '4px',
                         transition: 'background-color 0.15s',
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#334155'
+                        e.currentTarget.style.backgroundColor = 'var(--bg-hover, #334155)'
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.backgroundColor = 'transparent'
