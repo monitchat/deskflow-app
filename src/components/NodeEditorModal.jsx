@@ -2719,6 +2719,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                           updateData('template_name', null)
                           updateData('template_language', null)
                           updateData('template_id', null)
+                          updateData('template_object', null)
                           updateData('header_params', {})
                           updateData('body_params', {})
                           return
@@ -2728,6 +2729,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                         updateData('template_name', name)
                         updateData('template_language', lang)
                         updateData('template_id', tmpl?.id || null)
+                        updateData('template_object', tmpl || null)
                         updateData('header_params', {})
                         updateData('body_params', {})
                       }}

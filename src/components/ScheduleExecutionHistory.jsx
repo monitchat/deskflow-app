@@ -26,7 +26,24 @@ function ScheduleExecutionHistory({ flowId, scheduleId, onExecuteNow }) {
       setLoading(true)
       const res = await api.get(`/api/v1/flows/${flowId}/schedules/${scheduleId}/history`)
       if (res.data.success) {
-        setHistory(res.data.data || [])
+        // Normaliza campos do backend para o formato do frontend
+        const entries = (res.data.data || []).map((e) => {
+          let duration = null
+          if (e.started_at && e.finished_at) {
+            duration = Math.round(
+              (new Date(e.finished_at) - new Date(e.started_at)) / 1000
+            )
+          }
+          return {
+            ...e,
+            executed_at: e.started_at,
+            targets_count: e.total_targets,
+            success_count: e.successful,
+            fail_count: e.failed,
+            duration_seconds: duration,
+          }
+        })
+        setHistory(entries)
       }
     } catch (err) {
       console.error('Error loading schedule history:', err)
@@ -55,6 +72,7 @@ function ScheduleExecutionHistory({ flowId, scheduleId, onExecuteNow }) {
       year: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
     })
   }
 
