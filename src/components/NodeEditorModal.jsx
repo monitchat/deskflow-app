@@ -2926,6 +2926,20 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
               </div>
             )}
 
+            {/* Token MonitChat */}
+            <div className="form-group">
+              <label>Token MonitChat</label>
+              <input
+                type="text"
+                value={data.monitchat_token || ''}
+                onChange={(e) => updateData('monitchat_token', e.target.value)}
+                placeholder="${{secret.MONITCHAT_TOKEN}}"
+              />
+              <small style={{ color: 'var(--text-dim)', display: 'block', marginTop: '0.25rem' }}>
+                Use uma secret do fluxo (ex: <code>{'${{secret.MONITCHAT_TOKEN}}'}</code>) ou uma global secret. Obrigatório para agendamentos.
+              </small>
+            </div>
+
             {/* Rótulo */}
             <div className="form-group">
               <label>Rótulo (opcional)</label>

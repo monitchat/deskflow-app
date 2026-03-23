@@ -1,139 +1,123 @@
+import { useState } from 'react'
+
 const onDragStart = (event, nodeType) => {
   event.dataTransfer.setData('application/reactflow', nodeType)
   event.dataTransfer.effectAllowed = 'move'
 }
 
-const nodeDefinitions = [
+const categories = [
   {
-    type: 'message',
-    label: 'Mensagem de Texto',
+    id: 'mensagens',
+    label: 'Mensagens',
     icon: '💬',
-    description: 'Envia uma mensagem de texto simples',
+    nodes: [
+      { type: 'message', label: 'Mensagem de Texto', icon: '💬', description: 'Envia uma mensagem de texto simples' },
+      { type: 'button', label: 'Botões', icon: '🔘', description: 'Envia botões interativos' },
+      { type: 'list', label: 'Lista', icon: '📋', description: 'Envia uma lista de opções' },
+      { type: 'media', label: 'Enviar Mídia', icon: '📎', description: 'Envia documento, imagem ou link' },
+      { type: 'whatsapp_template', label: 'Template WhatsApp', icon: '📨', description: 'Envia um template aprovado do WhatsApp' },
+    ],
   },
   {
-    type: 'button',
-    label: 'Botões',
-    icon: '🔘',
-    description: 'Envia botões interativos',
-  },
-  {
-    type: 'list',
-    label: 'Lista',
-    icon: '📋',
-    description: 'Envia uma lista de opções',
-  },
-  {
-    type: 'input',
-    label: 'Capturar Input',
+    id: 'interacao',
+    label: 'Interação',
     icon: '⌨️',
-    description: 'Recebe e valida input do usuário',
-  },
-{
-    type: 'router',
-    label: 'Router Inteligente',
-    icon: '🎯',
-    description: 'Roteador com múltiplas saídas e mensagem de erro',
+    nodes: [
+      { type: 'input', label: 'Capturar Input', icon: '⌨️', description: 'Recebe e valida input do usuário' },
+      { type: 'router', label: 'Router Inteligente', icon: '🎯', description: 'Roteador com múltiplas saídas e mensagem de erro' },
+      { type: 'audio_transcription', label: 'Transcrição de Áudio', icon: '🎤', description: 'Conecte ao Início para ativar STT' },
+    ],
   },
   {
-    type: 'ai_router',
-    label: 'AI Router',
+    id: 'ia',
+    label: 'Inteligência Artificial',
     icon: '🤖',
-    description: 'Classifica intenções usando IA (OpenAI/Gemini)',
+    nodes: [
+      { type: 'ai_router', label: 'AI Router', icon: '🤖', description: 'Classifica intenções usando IA (OpenAI/Gemini)' },
+      { type: 'ai_agent', label: 'Agente IA', icon: '🧠', description: 'Agente conversacional com IA e tools' },
+      { type: 'ai_tool', label: 'Tool (Agente)', icon: '🔧', description: 'Ferramenta conectável a um Agente IA' },
+    ],
   },
   {
-    type: 'ai_agent',
-    label: 'Agente IA',
-    icon: '🧠',
-    description: 'Agente conversacional com IA e tools',
-  },
-  {
-    type: 'ai_tool',
-    label: 'Tool (Agente)',
-    icon: '🔧',
-    description: 'Ferramenta conectável a um Agente IA',
-  },
-{
-    type: 'api_request',
-    label: 'API Request',
-    icon: '🌐',
-    description: 'Requisição HTTP customizável (GET/POST/PUT/DELETE)',
-  },
-  {
-    type: 'set_context',
-    label: 'Salvar no Contexto',
+    id: 'dados',
+    label: 'Dados e Lógica',
     icon: '💾',
-    description: 'Salva valores no contexto da conversa',
+    nodes: [
+      { type: 'api_request', label: 'API Request', icon: '🌐', description: 'Requisição HTTP customizável (GET/POST/PUT/DELETE)' },
+      { type: 'set_context', label: 'Salvar no Contexto', icon: '💾', description: 'Salva valores no contexto da conversa' },
+      { type: 'expression', label: 'Expressão', icon: '📝', description: 'Concatena, formata e calcula valores' },
+      { type: 'data_structure', label: 'Estrutura de Dados', icon: '📊', description: 'Cria e manipula listas, objetos e tabelas' },
+      { type: 'loop', label: 'Loop (Repetição)', icon: '🔄', description: 'Itera sobre uma lista/dict do contexto' },
+    ],
   },
   {
-    type: 'delay',
-    label: 'Delay',
-    icon: '⏱️',
-    description: 'Aguarda X segundos antes de continuar',
-  },
-  {
-    type: 'transfer',
-    label: 'Transferir',
+    id: 'atendimento',
+    label: 'Atendimento',
     icon: '👤',
-    description: 'Transfere para atendimento humano',
+    nodes: [
+      { type: 'transfer', label: 'Transferir', icon: '👤', description: 'Transfere para atendimento humano' },
+      { type: 'set_ticket_status', label: 'Alterar Status', icon: '🎫', description: 'Altera o status do ticket/atendimento' },
+    ],
   },
   {
-    type: 'set_ticket_status',
-    label: 'Alterar Status',
-    icon: '🎫',
-    description: 'Altera o status do ticket/atendimento',
-  },
-  {
-    type: 'whatsapp_template',
-    label: 'Template WhatsApp',
-    icon: '📨',
-    description: 'Envia um template aprovado do WhatsApp',
-  },
-  {
-    type: 'media',
-    label: 'Enviar Mídia',
-    icon: '📎',
-    description: 'Envia documento, imagem ou link',
-  },
-  {
-    type: 'loop',
-    label: 'Loop (Repetição)',
-    icon: '🔄',
-    description: 'Itera sobre uma lista/dict do contexto',
-  },
-  {
-    type: 'expression',
-    label: 'Expressão',
-    icon: '📝',
-    description: 'Concatena, formata e calcula valores',
-  },
-  {
-    type: 'data_structure',
-    label: 'Estrutura de Dados',
-    icon: '📊',
-    description: 'Cria e manipula listas, objetos e tabelas',
-  },
-  {
-    type: 'jump_to',
-    label: 'Pular para',
+    id: 'fluxo',
+    label: 'Controle de Fluxo',
     icon: '↗️',
-    description: 'Pula para outro nó do fluxo',
-  },
-  {
-    type: 'end',
-    label: 'Finalizar',
-    icon: '🏁',
-    description: 'Finaliza a conversa',
-  },
-  {
-    type: 'audio_transcription',
-    label: 'Transcrição de Áudio',
-    icon: '🎤',
-    description: 'Conecte ao Início para ativar STT',
+    nodes: [
+      { type: 'delay', label: 'Delay', icon: '⏱️', description: 'Aguarda X segundos antes de continuar' },
+      { type: 'jump_to', label: 'Pular para', icon: '↗️', description: 'Pula para outro nó do fluxo' },
+      { type: 'end', label: 'Finalizar', icon: '🏁', description: 'Finaliza a conversa' },
+    ],
   },
 ]
 
 function Sidebar({ sidebarPinned, onTogglePin, nodes = [] }) {
   const hasStartNode = nodes.some((n) => n.type === 'start')
+  const [search, setSearch] = useState('')
+
+  // Carrega estado das categorias do localStorage (padrão: todas fechadas)
+  const [collapsedCategories, setCollapsedCategories] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sidebar_categories')
+      if (saved) return JSON.parse(saved)
+    } catch {}
+    // Padrão: todas fechadas
+    const defaults = {}
+    categories.forEach((cat) => { defaults[cat.id] = true })
+    return defaults
+  })
+
+  const searchLower = search.toLowerCase().trim()
+
+  const toggleCategory = (id) => {
+    setCollapsedCategories((prev) => {
+      const next = { ...prev, [id]: !prev[id] }
+      localStorage.setItem('sidebar_categories', JSON.stringify(next))
+      return next
+    })
+  }
+
+  // Filtra nós por busca
+  const filteredCategories = categories
+    .map((cat) => ({
+      ...cat,
+      nodes: cat.nodes.filter(
+        (n) =>
+          !searchLower ||
+          n.label.toLowerCase().includes(searchLower) ||
+          n.description.toLowerCase().includes(searchLower) ||
+          n.type.toLowerCase().includes(searchLower)
+      ),
+    }))
+    .filter((cat) => cat.nodes.length > 0)
+
+  // Start node visível na busca?
+  const showStart =
+    !searchLower ||
+    'início'.includes(searchLower) ||
+    'start'.includes(searchLower) ||
+    'ponto de entrada'.includes(searchLower)
+
   return (
     <div className="flow-builder-sidebar">
       <div className="sidebar-section">
@@ -164,60 +148,173 @@ function Sidebar({ sidebarPinned, onTogglePin, nodes = [] }) {
             </button>
           )}
         </h3>
-        <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '0.75rem' }}>
-          Arraste os componentes para o canvas
-        </p>
 
-        {/* Nó Start — arrastável se não existe, desabilitado se já existe */}
-        <div
-          className="node-type"
-          onDragStart={(event) => {
-            if (hasStartNode) {
-              event.preventDefault()
-              return
-            }
-            onDragStart(event, 'start')
-          }}
-          draggable={!hasStartNode}
-          style={{
-            border: hasStartNode ? '1px solid var(--border)' : '1px dashed var(--accent)',
-            borderRadius: '8px',
-            opacity: hasStartNode ? 0.4 : 1,
-            cursor: hasStartNode ? 'not-allowed' : 'grab',
-          }}
-          title={hasStartNode ? 'Já existe um nó Início neste fluxo' : 'Arraste para o canvas'}
-        >
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span className="node-type-icon">{'▶️'}</span>
-            <div>
-              <div style={{ fontWeight: 600, color: hasStartNode ? 'var(--text-dim)' : 'var(--accent)', fontSize: '0.85rem' }}>
-                Início (Start) {hasStartNode && '✓'}
-              </div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--sidebar-item-desc)' }}>
-                {hasStartNode ? 'Já existe no fluxo' : 'Ponto de entrada do fluxo (obrigatório)'}
-              </div>
-            </div>
-          </div>
+        {/* Campo de busca */}
+        <div style={{ position: 'relative', marginBottom: '0.75rem' }}>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar componente..."
+            style={{
+              width: '100%',
+              padding: '0.45rem 0.6rem 0.45rem 1.8rem',
+              fontSize: '0.8rem',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              backgroundColor: 'var(--bg-input)',
+              color: 'var(--text-primary)',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+          <span style={{
+            position: 'absolute',
+            left: '0.55rem',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            fontSize: '0.8rem',
+            color: 'var(--text-dim)',
+            pointerEvents: 'none',
+          }}>
+            🔍
+          </span>
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              style={{
+                position: 'absolute',
+                right: '0.4rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+                color: 'var(--text-dim)',
+                padding: '0.15rem',
+                lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+          )}
         </div>
 
-        {nodeDefinitions.map((node) => (
+        {/* Nó Start */}
+        {showStart && (
           <div
-            key={node.type}
             className="node-type"
-            onDragStart={(event) => onDragStart(event, node.type)}
-            draggable
+            onDragStart={(event) => {
+              if (hasStartNode) {
+                event.preventDefault()
+                return
+              }
+              onDragStart(event, 'start')
+            }}
+            draggable={!hasStartNode}
+            style={{
+              border: hasStartNode ? '1px solid var(--border)' : '1px dashed var(--accent)',
+              borderRadius: '8px',
+              opacity: hasStartNode ? 0.4 : 1,
+              cursor: hasStartNode ? 'not-allowed' : 'grab',
+            }}
+            title={hasStartNode ? 'Já existe um nó Início neste fluxo' : 'Arraste para o canvas'}
           >
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              <span className="node-type-icon">{node.icon}</span>
+              <span className="node-type-icon">{'▶️'}</span>
               <div>
-                <div style={{ fontWeight: 600, color: 'var(--sidebar-item-label)', fontSize: '0.85rem' }}>{node.label}</div>
+                <div style={{ fontWeight: 600, color: hasStartNode ? 'var(--text-dim)' : 'var(--accent)', fontSize: '0.85rem' }}>
+                  Início (Start) {hasStartNode && '✓'}
+                </div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--sidebar-item-desc)' }}>
-                  {node.description}
+                  {hasStartNode ? 'Já existe no fluxo' : 'Ponto de entrada do fluxo (obrigatório)'}
                 </div>
               </div>
             </div>
           </div>
-        ))}
+        )}
+
+        {/* Categorias */}
+        {filteredCategories.map((cat) => {
+          const isCollapsed = collapsedCategories[cat.id] && !searchLower
+          return (
+            <div key={cat.id} style={{ marginTop: '0.5rem' }}>
+              {/* Header da categoria */}
+              <div
+                onClick={() => !searchLower && toggleCategory(cat.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.35rem 0.4rem',
+                  cursor: searchLower ? 'default' : 'pointer',
+                  borderRadius: '4px',
+                  userSelect: 'none',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  if (!searchLower) e.currentTarget.style.backgroundColor = 'var(--bg-hover)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                }}
+              >
+                <span style={{
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  color: 'var(--text-dim)',
+                }}>
+                  {cat.icon} {cat.label}
+                </span>
+                {!searchLower && (
+                  <span style={{
+                    fontSize: '0.6rem',
+                    color: 'var(--text-dim)',
+                    transition: 'transform 0.2s',
+                    transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                  }}>
+                    ▼
+                  </span>
+                )}
+              </div>
+
+              {/* Nós da categoria */}
+              {!isCollapsed && cat.nodes.map((node) => (
+                <div
+                  key={node.type}
+                  className="node-type"
+                  onDragStart={(event) => onDragStart(event, node.type)}
+                  draggable
+                >
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span className="node-type-icon">{node.icon}</span>
+                    <div>
+                      <div style={{ fontWeight: 600, color: 'var(--sidebar-item-label)', fontSize: '0.85rem' }}>{node.label}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--sidebar-item-desc)' }}>
+                        {node.description}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })}
+
+        {/* Sem resultados */}
+        {filteredCategories.length === 0 && !showStart && (
+          <div style={{
+            padding: '1rem',
+            textAlign: 'center',
+            color: 'var(--text-dim)',
+            fontSize: '0.8rem',
+          }}>
+            Nenhum componente encontrado
+          </div>
+        )}
       </div>
 
       <div className="sidebar-section">
