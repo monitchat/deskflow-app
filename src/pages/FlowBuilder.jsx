@@ -66,7 +66,7 @@ function FlowBuilderInner() {
   const { id: flowId } = useParams()
   const toast = __useToast()
   const navigate = useNavigate()
-  const { screenToFlowPosition, fitView } = useReactFlow()
+  const { screenToFlowPosition, fitView, getViewport } = useReactFlow()
 
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
@@ -599,6 +599,37 @@ function FlowBuilderInner() {
     },
     [screenToFlowPosition, setNodes, nodes]
   )
+
+  // Adiciona nó ao centro do canvas (para mobile/touch)
+  const handleAddNodeFromSidebar = useCallback((type) => {
+    if (type === 'start') {
+      const hasStart = nodes.some((n) => n.type === 'start')
+      if (hasStart) {
+        toast.warning('Já existe um nó de Início neste fluxo.')
+        return
+      }
+    }
+
+    // Calcula o centro visível do canvas
+    const { x, y, zoom } = getViewport()
+    const canvasEl = document.querySelector('.react-flow')
+    const w = canvasEl?.clientWidth || 800
+    const h = canvasEl?.clientHeight || 600
+    const position = {
+      x: (-x + w / 2) / zoom - 75,
+      y: (-y + h / 2) / zoom - 25,
+    }
+
+    const newNode = {
+      id: type === 'start' ? 'node_start' : getId(),
+      type,
+      position,
+      data: getDefaultNodeData(type),
+      ...(type === 'start' ? { deletable: false } : {}),
+    }
+
+    setNodes((nds) => nds.concat(newNode))
+  }, [getViewport, setNodes, nodes])
 
   const getDefaultNodeData = (type) => {
     const defaults = {
@@ -1336,7 +1367,7 @@ function FlowBuilderInner() {
               boxShadow: !sidebarPinned && sidebarVisible ? '4px 0 20px rgba(0,0,0,0.2)' : 'none',
             }}
           >
-            <Sidebar sidebarPinned={sidebarPinned} nodes={nodes} onTogglePin={() => {
+            <Sidebar sidebarPinned={sidebarPinned} nodes={nodes} onAddNode={handleAddNodeFromSidebar} onTogglePin={() => {
               const next = !sidebarPinned
               setSidebarPinned(next)
               localStorage.setItem('deskflow-sidebar-pinned', String(next))

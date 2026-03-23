@@ -71,7 +71,7 @@ const categories = [
   },
 ]
 
-function Sidebar({ sidebarPinned, onTogglePin, nodes = [] }) {
+function Sidebar({ sidebarPinned, onTogglePin, onAddNode, nodes = [] }) {
   const hasStartNode = nodes.some((n) => n.type === 'start')
   const [search, setSearch] = useState('')
 
@@ -212,6 +212,7 @@ function Sidebar({ sidebarPinned, onTogglePin, nodes = [] }) {
               }
               onDragStart(event, 'start')
             }}
+            onClick={() => !hasStartNode && onAddNode && onAddNode('start')}
             draggable={!hasStartNode}
             style={{
               border: hasStartNode ? '1px solid var(--border)' : '1px dashed var(--accent)',
@@ -287,6 +288,7 @@ function Sidebar({ sidebarPinned, onTogglePin, nodes = [] }) {
                   key={node.type}
                   className="node-type"
                   onDragStart={(event) => onDragStart(event, node.type)}
+                  onClick={() => onAddNode && onAddNode(node.type)}
                   draggable
                 >
                   <div style={{ display: 'flex', alignItems: 'center' }}>
