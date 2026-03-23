@@ -7,6 +7,7 @@ import FlowBuilder from './pages/FlowBuilder'
 import FlowList from './pages/FlowList'
 import Login from './pages/Login'
 import DocsPage from './pages/DocsPage'
+import Analytics from './pages/Analytics'
 import ProtectedRoute from './components/ProtectedRoute'
 import './index.css'
 
@@ -37,6 +38,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           element={
             <ProtectedRoute>
               <FlowBuilder />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <ProtectedRoute>
+              <Analytics />
             </ProtectedRoute>
           }
         />

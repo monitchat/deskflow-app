@@ -475,6 +475,33 @@ function FlowList() {
             {isAdmin && (
               <>
                 <button
+                  onClick={() => navigate('/analytics')}
+                  style={{
+                    padding: '0.6rem 1.2rem',
+                    border: '1px solid var(--border)',
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    backgroundColor: 'var(--bg-surface)',
+                    color: 'var(--text-muted)',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#14b8a6'
+                    e.currentTarget.style.color = '#14b8a6'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border)'
+                    e.currentTarget.style.color = 'var(--text-muted)'
+                  }}
+                >
+                  📊 Analytics
+                </button>
+                <button
                   onClick={() => setShowImportAI(true)}
                   style={{
                     padding: '0.6rem 1.2rem',
