@@ -65,7 +65,8 @@ let id = 0
 const getId = () => `node_${id++}`
 
 function FlowBuilderInner() {
-  const { id: flowId } = useParams()
+  const { id: paramId } = useParams()
+  const flowId = paramId || 'new'
   const toast = __useToast()
   const navigate = useNavigate()
   const { screenToFlowPosition, fitView, getViewport } = useReactFlow()
@@ -93,6 +94,7 @@ function FlowBuilderInner() {
   const [lastSaved, setLastSaved] = useState(null)
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
   const [connectionMenu, setConnectionMenu] = useState(null) // { x, y, sourceNodeId }
+  const [connectionMenuFilter, setConnectionMenuFilter] = useState('')
   const [copiedNode, setCopiedNode] = useState(null)
   const [sidebarPinned, setSidebarPinned] = useState(() => {
     const saved = localStorage.getItem('deskflow-sidebar-pinned')
@@ -137,12 +139,49 @@ function FlowBuilderInner() {
 
   // Auto-save com debounce
   useEffect(() => {
-    // Não salva se auto-save estiver desabilitado, for fluxo novo ou se ainda não carregou
-    if (!autoSaveEnabled || !flowId || flowId === 'new' || nodes.length === 0) {
+    if (!autoSaveEnabled || !flowId || nodes.length === 0) {
       return
     }
 
-    // Debounce de 2 segundos
+    // Para fluxo novo: cria automaticamente quando tem mais que só o start
+    if (flowId === 'new') {
+      const hasContent = nodes.some(n => n.type !== 'start')
+      console.log('🆕 Auto-save new flow check:', { hasContent, nodesCount: nodes.length, autoSaveEnabled })
+      if (!hasContent) return
+
+      const timer = setTimeout(async () => {
+        try {
+          const companyId = localStorage.getItem('user_company_id')
+          const flowData = {
+            nodes,
+            edges,
+            metadata: { version: '1.0.0', updated_at: new Date().toISOString() },
+          }
+          console.log('🆕 Creating new flow...', { name: flowName, nodes: nodes.length })
+          const response = await api.post('/api/v1/flows', {
+            name: flowName || 'Novo Fluxo',
+            description: flowDescription,
+            data: flowData,
+            is_active: false,
+            company_id: companyId ? parseInt(companyId) : null,
+          })
+          console.log('🆕 Response:', response.data)
+          const newId = response.data?.data?.id || response.data?.id
+          if (!newId) {
+            console.error('❌ No flow ID in response:', response.data)
+            return
+          }
+          setLastSaved(new Date())
+          navigate(`/flow/${newId}`, { replace: true })
+          console.log(`✅ Fluxo criado automaticamente (ID: ${newId})`)
+        } catch (error) {
+          console.error('❌ Erro ao criar fluxo:', error?.response?.data || error)
+        }
+      }, 1500)
+      return () => clearTimeout(timer)
+    }
+
+    // Para fluxo existente: auto-save normal
     const timer = setTimeout(() => {
       autoSave()
     }, 2000)
@@ -659,7 +698,7 @@ function FlowBuilderInner() {
           ],
         },
       },
-      condition: { label: 'Condição' },
+      condition: { label: 'If/Else', context_key: '' },
       router: {
         label: 'Router Inteligente',
         error_message: 'Opção inválida! Por favor, digite uma das opções válidas.',
@@ -766,6 +805,12 @@ function FlowBuilderInner() {
   const onNodeClick = useCallback((event, node) => {
     setSelectedNode(node)
     // Não abre o modal automaticamente - apenas seleciona
+  }, [])
+
+  const onNodeDoubleClick = useCallback((event, node) => {
+    if (node.type === 'start') return
+    setSelectedNode(node)
+    setShowNodeEditor(true)
   }, [])
 
   const onEdgeClick = useCallback((event, edge) => {
@@ -1395,6 +1440,7 @@ function FlowBuilderInner() {
               onDrop={onDrop}
               onDragOver={onDragOver}
               onNodeClick={onNodeClick}
+              onNodeDoubleClick={onNodeDoubleClick}
               onEdgeClick={onEdgeClick}
               onSelectionChange={onSelectionChange}
               nodeTypes={nodeTypes}
@@ -1465,7 +1511,7 @@ function FlowBuilderInner() {
                     bottom: 0,
                     zIndex: 999,
                   }}
-                  onClick={() => setConnectionMenu(null)}
+                  onClick={() => { setConnectionMenu(null); setConnectionMenuFilter('') }}
                 />
 
                 {/* Menu de opções */}
@@ -1479,9 +1525,12 @@ function FlowBuilderInner() {
                     boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
                     padding: '0.5rem',
                     zIndex: 1000,
-                    minWidth: '200px',
+                    minWidth: '220px',
+                    maxHeight: '400px',
+                    overflowY: 'auto',
                     border: '1px solid var(--border, #334155)',
                   }}
+                  className="connection-menu-scroll"
                 >
                   <div style={{
                     fontSize: '0.75rem',
@@ -1496,6 +1545,33 @@ function FlowBuilderInner() {
                         : nodes.find(n => n.id === connectionMenu.sourceNodeId)?.type === 'ai_tool' ? '🧠 Conectar ao Agente'
                           : '➕ Adicionar Nó'}
                   </div>
+                  {/* Campo de busca (só para lista geral) */}
+                  {connectionMenu.sourceHandle !== 'subagents'
+                    && connectionMenu.sourceHandle !== 'tools'
+                    && nodes.find(n => n.id === connectionMenu.sourceNodeId)?.type !== 'ai_tool'
+                    && (
+                    <div style={{ padding: '0.25rem 0.25rem 0.4rem' }}>
+                      <input
+                        type="text"
+                        placeholder="🔍 Buscar componente..."
+                        value={connectionMenuFilter}
+                        onChange={(e) => setConnectionMenuFilter(e.target.value)}
+                        autoFocus
+                        style={{
+                          width: '100%',
+                          padding: '0.4rem 0.5rem',
+                          fontSize: '0.8rem',
+                          backgroundColor: 'var(--bg-secondary, #0f172a)',
+                          color: 'var(--text, #e2e8f0)',
+                          border: '1px solid var(--border, #475569)',
+                          borderRadius: '6px',
+                          outline: 'none',
+                        }}
+                        onFocus={(e) => e.target.style.borderColor = '#7C3AED'}
+                        onBlur={(e) => e.target.style.borderColor = 'var(--border, #475569)'}
+                      />
+                    </div>
+                  )}
                   {(() => {
                     const handle = connectionMenu.sourceHandle
                     const sourceNode = nodes.find(n => n.id === connectionMenu.sourceNodeId)
@@ -1531,6 +1607,7 @@ function FlowBuilderInner() {
                       { type: 'button', icon: '🔘', label: 'Botões' },
                       { type: 'list', icon: '📋', label: 'Lista' },
                       { type: 'input', icon: '⌨️', label: 'Input' },
+                      { type: 'condition', icon: '🔀', label: 'If/Else' },
                       { type: 'router', icon: '🎯', label: 'Router' },
                       { type: 'ai_router', icon: '🤖', label: 'AI Router' },
                       { type: 'ai_agent', icon: '🧠', label: 'Agente IA' },
@@ -1547,7 +1624,11 @@ function FlowBuilderInner() {
                       { type: 'jump_to', icon: '↗️', label: 'Pular para' },
                       { type: 'end', icon: '🏁', label: 'Fim' },
                     ]
-                  })().map((item) => (
+                  })().filter((item) => {
+                    if (!connectionMenuFilter) return true
+                    return item.label.toLowerCase().includes(connectionMenuFilter.toLowerCase())
+                      || item.type.toLowerCase().includes(connectionMenuFilter.toLowerCase())
+                  }).map((item) => (
                     <button
                       key={item.type}
                       onClick={() => handleAddNodeFromConnection(item.type, item.toolDefaults)}

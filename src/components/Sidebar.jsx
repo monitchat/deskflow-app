@@ -24,6 +24,7 @@ const categories = [
     icon: '⌨️',
     nodes: [
       { type: 'input', label: 'Capturar Input', icon: '⌨️', description: 'Recebe e valida input do usuário' },
+      { type: 'condition', label: 'If/Else', icon: '🔀', description: 'Ramificação condicional baseada em valores do contexto' },
       { type: 'router', label: 'Router Inteligente', icon: '🎯', description: 'Roteador com múltiplas saídas e mensagem de erro' },
       { type: 'audio_transcription', label: 'Transcrição de Áudio', icon: '🎤', description: 'Conecte ao Início para ativar STT' },
     ],

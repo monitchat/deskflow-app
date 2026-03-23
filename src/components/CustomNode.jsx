@@ -34,7 +34,7 @@ const nodeLabels = {
   message: 'Mensagem',
   button: 'Botões',
   list: 'Lista',
-  condition: 'Condição',
+  condition: 'IF/ELSE',
   router: 'Router',
   ai_router: 'AI Router',
   ai_agent: 'Agente IA',
@@ -271,8 +271,43 @@ function CustomNode({ data, type, selected, id }) {
             </small>
           </div>
         )
-      case 'condition':
-        return <div className="node-content">{data.label || 'Condição'}</div>
+      case 'condition': {
+        const conds = data.conditions || []
+        return (
+          <div className="node-content" style={{ minWidth: '150px' }}>
+            <div style={{ marginBottom: '0.3rem', fontWeight: '600' }}>
+              {data.label || 'If/Else'}
+            </div>
+            {conds.length > 0 ? (
+              <div style={{ fontSize: '0.7rem' }}>
+                {conds.map((c, idx) => (
+                  <div key={idx} style={{
+                    padding: '0.15rem 0.3rem',
+                    marginBottom: '0.15rem',
+                    backgroundColor: idx === 0 ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)',
+                    borderRadius: '3px',
+                    color: idx === 0 ? '#4ade80' : '#fbbf24',
+                  }}>
+                    {idx === 0 ? 'IF' : 'ELSE IF'}: {c.label || c.key || '...'}
+                  </div>
+                ))}
+                <div style={{
+                  padding: '0.15rem 0.3rem',
+                  backgroundColor: 'rgba(239,68,68,0.15)',
+                  borderRadius: '3px',
+                  color: '#f87171',
+                }}>
+                  ELSE
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.72rem', color: 'var(--node-content-dim)' }}>
+                Sem condições configuradas
+              </div>
+            )}
+          </div>
+        )
+      }
       case 'router':
         const options = data.options || []
         return (
@@ -1065,6 +1100,72 @@ function CustomNode({ data, type, selected, id }) {
               cursor: 'crosshair',
               pointerEvents: 'all',
             }}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // Para condition (If/Else), handles dinâmicos por condição
+  if (type === 'condition') {
+    const conds = data.conditions || []
+    const headerHeight = 52
+    const itemHeight = 22
+
+    return (
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{ position: 'relative', zIndex: hovered ? 1000 : 'auto' }}
+      >
+        {renderTooltip()}
+        <Handle type="target" position={Position.Top} />
+
+        <div style={{ padding: '5px', position: 'relative' }}>
+          {renderActionButtons()}
+          <div className="node-header">
+            <span style={{ marginRight: '5px' }}>{icon}</span>
+            {label}
+          </div>
+          {getNodeContentWithRetry()}
+
+          {/* Handles para cada condição (IF, ELSE IF...) */}
+          {conds.map((cond, index) => (
+            <Handle
+              key={`condition_${index}`}
+              type="source"
+              position={Position.Right}
+              id={`condition_${index}`}
+              isConnectable={true}
+              style={{
+                top: `${headerHeight + (index * itemHeight) + (itemHeight / 2) + 4}px`,
+                background: index === 0 ? '#22c55e' : '#f59e0b',
+                cursor: 'crosshair',
+                pointerEvents: 'all',
+              }}
+            />
+          ))}
+
+          {/* Handle ELSE (fallback) */}
+          <Handle
+            type="source"
+            position={Position.Right}
+            id="else"
+            isConnectable={true}
+            style={{
+              top: `${headerHeight + (conds.length * itemHeight) + (itemHeight / 2) + 4}px`,
+              background: '#ef4444',
+              cursor: 'crosshair',
+              pointerEvents: 'all',
+            }}
+          />
+
+          {/* Handle normal na saída inferior (para compatibilidade) */}
+          <Handle
+            type="source"
+            position={Position.Bottom}
+            id={null}
+            style={{ visibility: 'hidden' }}
           />
         </div>
       </div>

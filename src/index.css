@@ -1253,3 +1253,29 @@ body {
 .pg-spin {
   animation: pgSpin 0.8s linear infinite;
 }
+
+/* Custom scrollbar for connection menu and other dropdowns */
+.connection-menu-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.connection-menu-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+
+.connection-menu-scroll::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.3);
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.connection-menu-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.6);
+}
+
+/* Firefox */
+.connection-menu-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(124, 58, 237, 0.3) transparent;
+}

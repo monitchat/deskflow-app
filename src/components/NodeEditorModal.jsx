@@ -844,21 +844,206 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
           </>
         )
 
-      case 'condition':
+      case 'condition': {
+        const conditions = data.conditions || []
+        const addCondition = () => {
+          const updated = [...conditions, { key: '', operator: 'eq', value: '', label: '' }]
+          updateData('conditions', updated)
+        }
+        const removeCondition = (idx) => {
+          const updated = conditions.filter((_, i) => i !== idx)
+          updateData('conditions', updated)
+        }
+        const updateCondition = (idx, field, value) => {
+          const updated = conditions.map((c, i) => i === idx ? { ...c, [field]: value } : c)
+          updateData('conditions', updated)
+        }
+        const operators = [
+          { value: 'eq', label: '== Igual (texto exato)', noValue: false },
+          { value: 'neq', label: '!= Diferente', noValue: false },
+          { value: 'gt', label: '> Maior que', noValue: false },
+          { value: 'gte', label: '>= Maior ou igual', noValue: false },
+          { value: 'lt', label: '< Menor que', noValue: false },
+          { value: 'lte', label: '<= Menor ou igual', noValue: false },
+          { value: 'contains', label: 'Contém (texto parcial)', noValue: false },
+          { value: 'not_contains', label: 'Não contém', noValue: false },
+          { value: 'starts_with', label: 'Começa com', noValue: false },
+          { value: 'ends_with', label: 'Termina com', noValue: false },
+          { value: 'exists', label: 'Existe (não vazio)', noValue: true },
+          { value: 'not_exists', label: 'Não existe (vazio)', noValue: true },
+          { value: 'is_number', label: 'É número', noValue: true },
+          { value: 'is_positive', label: 'Resposta positiva (sim/ok/yes)', noValue: true },
+          { value: 'in_list', label: 'Está na lista (separar por vírgula)', noValue: false },
+          { value: 'not_in_list', label: 'Não está na lista', noValue: false },
+          { value: 'regex', label: 'Expressão Regular', noValue: false },
+        ]
+        const selectedOp = operators.find(o => o.value === (data.conditions?.[0]?.operator)) || {}
+
         return (
-          <div className="form-group">
-            <label>Rótulo da condição</label>
-            <input
-              type="text"
-              value={data.label || ''}
-              onChange={(e) => updateData('label', e.target.value)}
-            />
-            <small style={{ color: '#666' }}>
-              Conecte este nó a múltiplos destinos e configure condições nas
-              conexões.
-            </small>
-          </div>
+          <>
+            <div className="form-group">
+              <label>Rótulo</label>
+              <input
+                type="text"
+                value={data.label || ''}
+                onChange={(e) => updateData('label', e.target.value)}
+                placeholder="Ex: Verificar tipo de cliente"
+              />
+            </div>
+
+            <div style={{ marginBottom: '0.75rem' }}>
+              <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text, #e2e8f0)', marginBottom: '0.5rem', display: 'block' }}>
+                Condições ({conditions.length})
+              </label>
+
+              {conditions.map((cond, idx) => (
+                <div key={idx} style={{
+                  padding: '0.75rem',
+                  backgroundColor: 'var(--bg-secondary, #1e293b)',
+                  border: '1px solid var(--border, #475569)',
+                  borderRadius: '8px',
+                  marginBottom: '0.5rem',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.8rem', color: idx === 0 ? '#22c55e' : '#f59e0b' }}>
+                      {idx === 0 ? 'IF' : `ELSE IF #${idx}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeCondition(idx)}
+                      style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.9rem' }}
+                    >🗑</button>
+                  </div>
+
+                  <div style={{ marginBottom: '0.4rem' }}>
+                    <input
+                      type="text"
+                      value={cond.label || ''}
+                      onChange={(e) => updateCondition(idx, 'label', e.target.value)}
+                      placeholder="Rótulo da saída (ex: Cliente VIP)"
+                      style={{
+                        width: '100%', padding: '0.4rem', fontSize: '0.8rem',
+                        backgroundColor: 'var(--bg-surface, #0f172a)', color: 'var(--text, #e2e8f0)',
+                        border: '1px solid var(--border, #475569)', borderRadius: '6px',
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '0.4rem' }}>
+                    <small style={{ color: 'var(--text-dim, #94a3b8)', fontSize: '0.72rem' }}>Fonte do valor</small>
+                    <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.3rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => updateCondition(idx, 'source', 'context')}
+                        style={{
+                          flex: 1, padding: '0.3rem', fontSize: '0.75rem', fontWeight: 600,
+                          backgroundColor: (cond.source || 'context') === 'context' ? '#7C3AED' : 'transparent',
+                          color: (cond.source || 'context') === 'context' ? '#fff' : 'var(--text-dim, #94a3b8)',
+                          border: `1px solid ${(cond.source || 'context') === 'context' ? '#7C3AED' : 'var(--border, #475569)'}`,
+                          borderRadius: '5px', cursor: 'pointer',
+                        }}
+                      >📦 Contexto</button>
+                      <button
+                        type="button"
+                        onClick={() => updateCondition(idx, 'source', 'user_input')}
+                        style={{
+                          flex: 1, padding: '0.3rem', fontSize: '0.75rem', fontWeight: 600,
+                          backgroundColor: cond.source === 'user_input' ? '#7C3AED' : 'transparent',
+                          color: cond.source === 'user_input' ? '#fff' : 'var(--text-dim, #94a3b8)',
+                          border: `1px solid ${cond.source === 'user_input' ? '#7C3AED' : 'var(--border, #475569)'}`,
+                          borderRadius: '5px', cursor: 'pointer',
+                        }}
+                      >💬 Texto do usuário</button>
+                    </div>
+
+                    {(cond.source || 'context') === 'context' && (
+                      <>
+                        <small style={{ color: 'var(--text-dim, #94a3b8)', fontSize: '0.72rem' }}>Chave do contexto</small>
+                        <input
+                          type="text"
+                          value={cond.key || ''}
+                          onChange={(e) => updateCondition(idx, 'key', e.target.value)}
+                          placeholder="Ex: tipo_cliente, api_response.status"
+                          style={{
+                            width: '100%', padding: '0.4rem', fontSize: '0.8rem',
+                            backgroundColor: 'var(--bg-surface, #0f172a)', color: 'var(--text, #e2e8f0)',
+                            border: '1px solid var(--border, #475569)', borderRadius: '6px',
+                          }}
+                        />
+                      </>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <select
+                      value={cond.operator || 'eq'}
+                      onChange={(e) => updateCondition(idx, 'operator', e.target.value)}
+                      style={{
+                        flex: 1, padding: '0.4rem', fontSize: '0.8rem',
+                        backgroundColor: 'var(--bg-surface, #0f172a)', color: 'var(--text, #e2e8f0)',
+                        border: '1px solid var(--border, #475569)', borderRadius: '6px',
+                      }}
+                    >
+                      {operators.map(op => (
+                        <option key={op.value} value={op.value}>{op.label}</option>
+                      ))}
+                    </select>
+
+                    {!operators.find(o => o.value === cond.operator)?.noValue !== false && !['exists', 'not_exists', 'is_number', 'is_positive'].includes(cond.operator) && (
+                      <input
+                        type="text"
+                        value={cond.value || ''}
+                        onChange={(e) => updateCondition(idx, 'value', e.target.value)}
+                        placeholder="Valor"
+                        style={{
+                          flex: 1, padding: '0.4rem', fontSize: '0.8rem',
+                          backgroundColor: 'var(--bg-surface, #0f172a)', color: 'var(--text, #e2e8f0)',
+                          border: '1px solid var(--border, #475569)', borderRadius: '6px',
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={addCondition}
+                style={{
+                  width: '100%', padding: '0.5rem', fontSize: '0.82rem',
+                  backgroundColor: 'transparent', color: '#7C3AED',
+                  border: '1px dashed #7C3AED', borderRadius: '8px',
+                  cursor: 'pointer', fontWeight: 500,
+                }}
+              >
+                + Adicionar Condição
+              </button>
+
+              <div style={{
+                marginTop: '0.5rem', padding: '0.5rem 0.75rem',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '6px', fontSize: '0.78rem', color: '#f87171',
+              }}>
+                🔴 <strong>ELSE</strong> — Saída padrão quando nenhuma condição acima é atendida (automática)
+              </div>
+            </div>
+
+            <div style={{
+              padding: '0.75rem',
+              backgroundColor: 'rgba(124, 58, 237, 0.08)',
+              borderRadius: '8px',
+              fontSize: '0.78rem',
+              color: 'var(--text-dim, #94a3b8)',
+              lineHeight: 1.5,
+            }}>
+              💡 Cada condição gera uma saída no nó. Conecte cada saída ao destino desejado.
+              A saída <strong>ELSE</strong> é usada quando nenhuma condição é verdadeira.
+              As condições são avaliadas na ordem — a primeira que for verdadeira é executada.
+            </div>
+          </>
         )
+      }
 
       case 'router':
         return (
