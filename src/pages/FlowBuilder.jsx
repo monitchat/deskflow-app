@@ -30,6 +30,7 @@ import KnowledgeBasePanel from '../components/KnowledgeBasePanel'
 import ExecutionLogsPanel from '../components/ExecutionLogsPanel'
 import SchedulePanel from '../components/SchedulePanel'
 import TutorialModal from '../components/TutorialModal'
+import NavigationTutorial from '../components/NavigationTutorial'
 import { useToast as __useToast } from '../contexts/ToastContext'
 
 const nodeTypes = {
@@ -103,6 +104,10 @@ function FlowBuilderInner() {
   const confirmResolveRef = useRef(null)
   const [showTutorial, setShowTutorial] = useState(() => {
     const seen = localStorage.getItem('deskflow-tutorial-seen')
+    return !seen
+  })
+  const [showNavTutorial, setShowNavTutorial] = useState(() => {
+    const seen = localStorage.getItem('flow_navigation_tutorial_seen')
     return !seen
   })
 
@@ -1402,7 +1407,50 @@ function FlowBuilderInner() {
               <Background />
               <Controls />
               <MiniMap />
+              {/* Botão "?" para reabrir tutorial de navegação */}
+              <div
+                onClick={() => setShowNavTutorial(true)}
+                style={{
+                  position: 'absolute',
+                  bottom: '10px',
+                  left: '50px',
+                  zIndex: 5,
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  backgroundColor: 'var(--bg-surface, #1e293b)',
+                  border: '1px solid var(--border, #334155)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted, #94a3b8)',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  transition: 'all 0.2s',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--accent, #6366f1)'
+                  e.currentTarget.style.color = 'var(--accent, #6366f1)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--border, #334155)'
+                  e.currentTarget.style.color = 'var(--text-muted, #94a3b8)'
+                }}
+                title="Controles de navegação"
+              >
+                ?
+              </div>
             </ReactFlow>
+
+            <NavigationTutorial
+              visible={showNavTutorial}
+              onDismiss={() => {
+                setShowNavTutorial(false)
+                localStorage.setItem('flow_navigation_tutorial_seen', 'true')
+              }}
+            />
 
             {/* Menu contextual para adicionar nó após arrastar conexão */}
             {connectionMenu && (
