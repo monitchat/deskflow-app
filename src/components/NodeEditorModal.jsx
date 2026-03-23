@@ -117,6 +117,11 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
   const [loadingTicketStatuses, setLoadingTicketStatuses] = useState(false)
   const [ticketStatusesError, setTicketStatusesError] = useState(null)
 
+  // Estados para usuários MonitChat (nó set_ticket_owner)
+  const [mcUsers, setMcUsers] = useState([])
+  const [loadingMcUsers, setLoadingMcUsers] = useState(false)
+  const [mcUsersError, setMcUsersError] = useState(null)
+
   // Estados para contas WhatsApp e templates (nó whatsapp_template)
   const [waAccounts, setWaAccounts] = useState([])
   const [loadingWaAccounts, setLoadingWaAccounts] = useState(false)
@@ -308,6 +313,38 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
   const closeKBPanel = () => {
     setShowKBPanel(false)
     fetchKnowledgeBases() // recarrega lista ao fechar
+  }
+
+  // Busca usuários da API do MonitChat
+  const fetchMonitchatUsers = async () => {
+    setLoadingMcUsers(true)
+    setMcUsersError(null)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(
+        'https://api-v2.monitchat.com/api/v1/user?skip=0&take=500&order=name&order_direction=asc',
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      const users = (result.data || []).filter((u) => u.active)
+      users.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      setMcUsers(users)
+    } catch (error) {
+      console.error('Error fetching MonitChat users:', error)
+      setMcUsersError(error.message || 'Erro ao buscar usuários')
+    } finally {
+      setLoadingMcUsers(false)
+    }
   }
 
   // Busca contas WhatsApp da API do MonitChat
@@ -545,6 +582,11 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
     // Carrega status de tickets se for set_ticket_status
     if (node.type === 'set_ticket_status') {
       fetchTicketStatuses()
+    }
+
+    // Carrega usuários se for set_ticket_owner
+    if (node.type === 'set_ticket_owner') {
+      fetchMonitchatUsers()
     }
 
     // Carrega contas WhatsApp se for whatsapp_template
@@ -2569,6 +2611,82 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                       updateData('status_id', parseInt(e.target.value))
                     }
                     placeholder="Digite o ID do status manualmente"
+                  />
+                </>
+              )}
+            </div>
+            <div className="form-group">
+              <label>Rótulo</label>
+              <input
+                type="text"
+                value={data.label || ''}
+                onChange={(e) => updateData('label', e.target.value)}
+              />
+            </div>
+          </>
+        )
+
+      case 'set_ticket_owner':
+        return (
+          <>
+            <div className="form-group">
+              <label>Usuário (novo dono)</label>
+              {loadingMcUsers ? (
+                <div style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--text-dim)', backgroundColor: 'var(--bg-input)', borderRadius: '4px' }}>
+                  Carregando usuários...
+                </div>
+              ) : mcUsersError ? (
+                <>
+                  <div style={{ padding: '0.75rem', marginBottom: '0.5rem', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '4px', fontSize: '0.85rem' }}>
+                    ⚠️ {mcUsersError}
+                  </div>
+                  <input
+                    type="number"
+                    value={data.user_id || ''}
+                    onChange={(e) => {
+                      updateData('user_id', parseInt(e.target.value))
+                      updateData('user_name', '')
+                    }}
+                    placeholder="Digite o ID do usuário manualmente"
+                  />
+                </>
+              ) : mcUsers.length > 0 ? (
+                <>
+                  <select
+                    value={data.user_id || ''}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      const userId = value ? parseInt(value) : null
+                      const user = mcUsers.find((u) => u.id === userId)
+                      updateData('user_id', userId)
+                      updateData('user_name', user?.name || '')
+                    }}
+                    style={{ fontSize: '0.9rem' }}
+                  >
+                    <option value="">Selecione um usuário</option>
+                    {mcUsers.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name} ({user.email || `ID: ${user.id}`})
+                      </option>
+                    ))}
+                  </select>
+                  <small style={{ color: 'var(--text-dim)', display: 'block', marginTop: '0.5rem' }}>
+                    {mcUsers.length} usuário{mcUsers.length !== 1 ? 's' : ''} ativo{mcUsers.length !== 1 ? 's' : ''}
+                  </small>
+                </>
+              ) : (
+                <>
+                  <div style={{ padding: '0.75rem', marginBottom: '0.5rem', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '4px', fontSize: '0.85rem' }}>
+                    ⚠️ Nenhum usuário encontrado
+                  </div>
+                  <input
+                    type="number"
+                    value={data.user_id || ''}
+                    onChange={(e) => {
+                      updateData('user_id', parseInt(e.target.value))
+                      updateData('user_name', '')
+                    }}
+                    placeholder="Digite o ID do usuário manualmente"
                   />
                 </>
               )}

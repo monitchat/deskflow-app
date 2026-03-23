@@ -26,6 +26,7 @@ const nodeIcons = {
   data_structure: '📊',
   audio_transcription: '🎤',
   whatsapp_template: '📨',
+  set_ticket_owner: '👑',
 }
 
 const nodeLabels = {
@@ -53,6 +54,7 @@ const nodeLabels = {
   data_structure: 'Dados',
   audio_transcription: 'Transcrição',
   whatsapp_template: 'Template WA',
+  set_ticket_owner: 'Alterar Dono',
 }
 
 function CustomNode({ data, type, selected, id }) {
@@ -447,6 +449,14 @@ function CustomNode({ data, type, selected, id }) {
             {data.label || 'Alterar Status'}
             <br />
             <small>Status: {data.status_id || 'N/A'}</small>
+          </div>
+        )
+      case 'set_ticket_owner':
+        return (
+          <div className="node-content">
+            {data.label || 'Alterar Dono'}
+            <br />
+            <small>Usuário: {data.user_name || data.user_id || 'N/A'}</small>
           </div>
         )
       case 'whatsapp_template':
