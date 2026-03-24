@@ -76,7 +76,7 @@ function ScheduleTargets({ targetType, targetConfig, executionConfig, onChangeTa
     try {
       const token = localStorage.getItem('token')
       const response = await fetch(
-        'https://api-v2.monitchat.com/api/v1/group?skip=0&take=500&order=name&order_direction=asc',
+        'https://api-v2.monitchat.com/api/v1/groups?skip=0&take=500&order=name&order_direction=asc',
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -408,7 +408,7 @@ function ScheduleTargets({ targetType, targetConfig, executionConfig, onChangeTa
                       }}>
                         {isSelected && (
                           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                            <path d="M2 5L4 7L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M2 5L4 7L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                         )}
                       </div>

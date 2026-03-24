@@ -182,6 +182,7 @@ function FlowList() {
   const [selectedFlowId, setSelectedFlowId] = useState(null)
   const [accountsFlowId, setAccountsFlowId] = useState(null)
   const [filterCompanyId, setFilterCompanyId] = useState('')
+  const [filterExecMode, setFilterExecMode] = useState('')
   const [confirmModal, setConfirmModal] = useState(null)
   const confirmResolveRef = useRef(null)
   const [showTutorial, setShowTutorial] = useState(false)
@@ -201,13 +202,16 @@ function FlowList() {
 
   useEffect(() => {
     loadFlows()
-  }, [filterCompanyId])
+  }, [filterCompanyId, filterExecMode])
 
   const loadFlows = async () => {
     try {
       setLoading(true)
-      const params = isMaster && filterCompanyId ? `?company_id=${filterCompanyId}` : ''
-      const response = await api.get(`/api/v1/flows${params}`)
+      const qp = new URLSearchParams()
+      if (isMaster && filterCompanyId) qp.set('company_id', filterCompanyId)
+      if (filterExecMode) qp.set('execution_mode', filterExecMode)
+      const qs = qp.toString()
+      const response = await api.get(`/api/v1/flows${qs ? `?${qs}` : ''}`)
       setFlows(response.data.data)
       setLoading(false)
     } catch (error) {
@@ -419,14 +423,31 @@ function FlowList() {
         <div style={styles.topBar}>
           <div>
             <h1 style={styles.title}>Fluxos de Conversação</h1>
-            <p style={styles.subtitle}>{flows.length} fluxo{flows.length !== 1 ? 's' : ''} criado{flows.length !== 1 ? 's' : ''}</p>
+            <p style={styles.subtitle}>{flows.length} fluxo{flows.length !== 1 ? 's' : ''}{filterExecMode ? ` (${filterExecMode === 'passive' ? 'passivo' : filterExecMode === 'active' ? 'ativo' : 'ambos'})` : ''}</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <select
+              value={filterExecMode}
+              onChange={(e) => setFilterExecMode(e.target.value)}
+              style={{
+                padding: '0.5rem 0.75rem',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                backgroundColor: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="">Todos os modos</option>
+              <option value="passive">Passivo</option>
+              <option value="active">Ativo</option>
+              <option value="both">Ambos</option>
+            </select>
             {isMaster && (
               <select
                 value={filterCompanyId}
                 onChange={(e) => setFilterCompanyId(e.target.value)}
-
                 style={{
                   padding: '0.5rem 0.75rem',
                   border: '1px solid var(--border)',
