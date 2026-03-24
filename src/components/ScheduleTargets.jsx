@@ -17,6 +17,11 @@ const TARGET_TYPES = [
     description: 'Selecione grupos de contatos do MonitChat. Os contatos serao buscados automaticamente a cada execucao.',
   },
   {
+    value: 'file',
+    label: 'Arquivo CSV',
+    description: 'Importe um arquivo CSV com coluna "telefone" obrigatoria. As demais colunas serao injetadas como contexto da sessao.',
+  },
+  {
     value: 'dynamic',
     label: 'Dinamico',
     description: 'O fluxo utiliza nos api_request ou logica customizada para buscar a lista de destinatarios a cada execucao.',
@@ -37,6 +42,80 @@ function ScheduleTargets({ targetType, targetConfig, executionConfig, onChangeTa
 
   const selectedGroupIds = targetConfig?.group_ids || []
   const selectedGroups = targetConfig?.groups || []
+
+  // File upload states
+  const [fileError, setFileError] = useState(null)
+  const fileContacts = targetConfig?.contacts || []
+  const fileColumns = targetConfig?.columns || []
+
+  const parseCSV = (text) => {
+    const lines = text.split(/\r?\n/).filter(l => l.trim())
+    if (lines.length < 2) {
+      setFileError('Arquivo deve ter pelo menos o cabecalho e uma linha de dados')
+      return
+    }
+
+    // Usa ; como padrao, detecta outros se nao encontrar
+    const firstLine = lines[0]
+    const delimiter = firstLine.includes(';') ? ';' : firstLine.includes('\t') ? '\t' : firstLine.includes(',') ? ',' : ';'
+
+    const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase().replace(/"/g, ''))
+
+    if (!headers.includes('telefone')) {
+      setFileError('Coluna "telefone" obrigatoria nao encontrada. Colunas encontradas: ' + headers.join(', '))
+      return
+    }
+
+    const contacts = []
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(delimiter).map(v => v.trim().replace(/^"|"$/g, ''))
+      if (values.length !== headers.length) continue
+
+      const row = {}
+      headers.forEach((h, idx) => {
+        row[h] = values[idx] || ''
+      })
+
+      // Valida telefone
+      const phone = (row.telefone || '').replace(/\D/g, '')
+      if (phone.length >= 10) {
+        row.telefone = phone
+        contacts.push(row)
+      }
+    }
+
+    if (contacts.length === 0) {
+      setFileError('Nenhum contato valido encontrado (telefone com 10+ digitos)')
+      return
+    }
+
+    setFileError(null)
+    onChangeTargetConfig({
+      ...targetConfig,
+      contacts,
+      columns: headers,
+    })
+  }
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setFileError(null)
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      parseCSV(event.target.result)
+    }
+    reader.onerror = () => {
+      setFileError('Erro ao ler o arquivo')
+    }
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  const clearFile = () => {
+    onChangeTargetConfig({ ...targetConfig, contacts: [], columns: [] })
+    setFileError(null)
+  }
 
   const handleNumbersChange = (text) => {
     setNumbersText(text)
@@ -497,6 +576,240 @@ function ScheduleTargets({ targetType, targetConfig, executionConfig, onChangeTa
           }}>
             Os contatos dos grupos selecionados serao buscados automaticamente a cada execucao do agendamento.
           </div>
+        </div>
+      )}
+
+      {/* File upload for 'file' type */}
+      {targetType === 'file' && (
+        <div>
+          <label style={labelStyle}>
+            Importar arquivo CSV
+            {fileContacts.length > 0 && (
+              <span style={{
+                fontWeight: 400,
+                color: 'var(--accent, #6366f1)',
+                marginLeft: '0.5rem',
+              }}>
+                ({fileContacts.length} {fileContacts.length === 1 ? 'contato' : 'contatos'}, {fileColumns.length} {fileColumns.length === 1 ? 'coluna' : 'colunas'})
+              </span>
+            )}
+          </label>
+
+          {/* Upload area */}
+          <div style={{
+            border: `2px dashed ${fileError ? '#ef4444' : 'var(--border, #334155)'}`,
+            borderRadius: '8px',
+            padding: '1.25rem',
+            textAlign: 'center',
+            backgroundColor: 'var(--bg-input, #0f172a)',
+            cursor: 'pointer',
+            transition: 'border-color 0.15s',
+          }}
+            onClick={() => document.getElementById('csv-upload')?.click()}
+          >
+            <input
+              id="csv-upload"
+              type="file"
+              accept=".csv,.txt,.tsv"
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+            />
+            <div style={{ fontSize: '1.5rem', marginBottom: '0.4rem' }}>&#128196;</div>
+            <div style={{
+              fontSize: '0.82rem',
+              color: 'var(--text-secondary, #cbd5e1)',
+              fontWeight: 500,
+            }}>
+              {fileContacts.length > 0 ? 'Clique para substituir o arquivo' : 'Clique para selecionar um arquivo CSV'}
+            </div>
+            <div style={{
+              fontSize: '0.72rem',
+              color: 'var(--text-dim, #64748b)',
+              marginTop: '0.25rem',
+            }}>
+              Delimitadores aceitos: ; (ponto e virgula), , (virgula) ou TAB
+            </div>
+          </div>
+
+          {/* Error */}
+          {fileError && (
+            <div style={{
+              marginTop: '0.4rem',
+              padding: '0.5rem 0.75rem',
+              backgroundColor: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              borderRadius: '6px',
+              fontSize: '0.78rem',
+              color: '#f87171',
+              lineHeight: 1.4,
+            }}>
+              {fileError}
+            </div>
+          )}
+
+          {/* Preview table */}
+          {fileContacts.length > 0 && (
+            <div style={{ marginTop: '0.6rem' }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '0.3rem',
+              }}>
+                <span style={{
+                  fontSize: '0.75rem',
+                  color: 'var(--text-dim, #64748b)',
+                }}>
+                  Preview (primeiros {Math.min(fileContacts.length, 5)} de {fileContacts.length})
+                </span>
+                <button
+                  onClick={clearFile}
+                  style={{
+                    padding: '0.2rem 0.5rem',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                    borderRadius: '4px',
+                    color: '#f87171',
+                    cursor: 'pointer',
+                    fontSize: '0.72rem',
+                  }}
+                >
+                  Limpar
+                </button>
+              </div>
+              <div style={{
+                overflowX: 'auto',
+                border: '1px solid var(--border, #334155)',
+                borderRadius: '6px',
+              }}>
+                <table style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  fontSize: '0.75rem',
+                }}>
+                  <thead>
+                    <tr>
+                      {fileColumns.map(col => (
+                        <th key={col} style={{
+                          padding: '0.4rem 0.6rem',
+                          textAlign: 'left',
+                          backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                          color: col === 'telefone' ? 'var(--accent, #818cf8)' : 'var(--text-secondary, #cbd5e1)',
+                          fontWeight: 600,
+                          borderBottom: '1px solid var(--border, #334155)',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {col}
+                          {col === 'telefone' && ' *'}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fileContacts.slice(0, 5).map((row, idx) => (
+                      <tr key={idx}>
+                        {fileColumns.map(col => (
+                          <td key={col} style={{
+                            padding: '0.35rem 0.6rem',
+                            color: 'var(--text-primary, #f1f5f9)',
+                            borderBottom: idx < Math.min(fileContacts.length, 5) - 1 ? '1px solid var(--border, #1e293b)' : 'none',
+                            whiteSpace: 'nowrap',
+                            fontFamily: col === 'telefone' ? 'monospace' : 'inherit',
+                          }}>
+                            {row[col] || ''}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Grouping option */}
+              <div style={{
+                marginTop: '0.6rem',
+                padding: '0.75rem',
+                backgroundColor: 'rgba(99, 102, 241, 0.04)',
+                border: '1px solid rgba(99, 102, 241, 0.12)',
+                borderRadius: '8px',
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  marginBottom: '0.3rem',
+                }}>
+                  <label style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    color: 'var(--text-secondary, #cbd5e1)',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    Agrupar por:
+                  </label>
+                  <select
+                    value={targetConfig?.group_by || ''}
+                    onChange={(e) => onChangeTargetConfig({
+                      ...targetConfig,
+                      group_by: e.target.value || null,
+                    })}
+                    style={{
+                      flex: 1,
+                      padding: '0.35rem 0.5rem',
+                      backgroundColor: 'var(--bg-input, #0f172a)',
+                      border: '1px solid var(--border, #334155)',
+                      borderRadius: '5px',
+                      color: 'var(--text-primary, #f1f5f9)',
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <option value="">Nenhum (uma mensagem por linha)</option>
+                    {fileColumns.map(col => (
+                      <option key={col} value={col}>{col}</option>
+                    ))}
+                  </select>
+                </div>
+                {targetConfig?.group_by && (
+                  <div style={{
+                    fontSize: '0.72rem',
+                    color: 'var(--text-dim, #64748b)',
+                    lineHeight: 1.5,
+                  }}>
+                    Linhas com mesmo <strong>{targetConfig.group_by}</strong> serao agrupadas em uma unica execucao.
+                    Variaveis extras: <code style={{
+                      backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                      padding: '0.1rem 0.3rem',
+                      borderRadius: '3px',
+                      color: 'var(--accent, #818cf8)',
+                    }}>{'${{linhas}}'}</code> (lista) e <code style={{
+                      backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                      padding: '0.1rem 0.3rem',
+                      borderRadius: '3px',
+                      color: 'var(--accent, #818cf8)',
+                    }}>{'${{total_linhas}}'}</code> (contagem).
+                    As demais colunas serao concatenadas com quebra de linha.
+                  </div>
+                )}
+              </div>
+
+              <div style={{
+                fontSize: '0.72rem',
+                color: 'var(--text-dim, #64748b)',
+                marginTop: '0.35rem',
+                lineHeight: 1.4,
+              }}>
+                Colunas disponiveis como variaveis no contexto: {fileColumns.filter(c => c !== 'telefone').map(c => (
+                  <code key={c} style={{
+                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    padding: '0.1rem 0.3rem',
+                    borderRadius: '3px',
+                    color: 'var(--accent, #818cf8)',
+                    marginLeft: '0.2rem',
+                  }}>{'${{' + c + '}}'}</code>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

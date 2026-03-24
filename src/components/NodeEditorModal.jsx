@@ -202,8 +202,56 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
     }))
   })()
 
-  // Combina sugestões de loop + API example
-  const allExtraSuggestions = [...loopSuggestions, ...apiExampleSuggestions]
+  // Sugestões de variáveis do agendamento (arquivo CSV)
+  const [scheduleSuggestions, setScheduleSuggestions] = useState([])
+  useEffect(() => {
+    if (!flowId) return
+    api.get(`/api/v1/flows/${flowId}/schedules`).then(res => {
+      if (!res.data?.success) return
+      const schedules = res.data.data || []
+      const fileSchedule = schedules.find(s => s.target_type === 'file' && s.target_config?.columns?.length > 0)
+      if (!fileSchedule) return
+      const tc = fileSchedule.target_config
+      const cols = tc.columns || []
+      const groupBy = tc.group_by
+      const suggestions = []
+      cols.forEach(col => {
+        if (col === 'telefone') return
+        suggestions.push({
+          label: col,
+          value: col,
+          example: groupBy ? `Valores concatenados (\\n)` : 'Coluna do arquivo',
+          source: '📄 Arquivo CSV',
+        })
+      })
+      if (groupBy) {
+        suggestions.push({
+          label: 'linhas',
+          value: 'linhas',
+          example: 'Array com todas as linhas do grupo',
+          source: '📄 Arquivo CSV',
+        })
+        suggestions.push({
+          label: 'total_linhas',
+          value: 'total_linhas',
+          example: 'Quantidade de linhas no grupo',
+          source: '📄 Arquivo CSV',
+        })
+        cols.filter(c => c !== 'telefone').forEach(col => {
+          suggestions.push({
+            label: `linhas[].${col}`,
+            value: `linhas[].${col}`,
+            example: `Campo "${col}" de cada item (para format_list)`,
+            source: '📄 Arquivo CSV',
+          })
+        })
+      }
+      setScheduleSuggestions(suggestions)
+    }).catch(() => {})
+  }, [flowId])
+
+  // Combina sugestões de loop + API example + agendamento
+  const allExtraSuggestions = [...loopSuggestions, ...apiExampleSuggestions, ...scheduleSuggestions]
 
   const getPreviousApiNode = () => {
     // Encontra edges que conectam PARA este nó
@@ -3386,9 +3434,35 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 onChange={(e) => updateData('item_variable', e.target.value)}
                 placeholder="item"
               />
-              <small style={{ color: 'var(--text-secondary, #888)' }}>
+              <small style={{ color: 'var(--text-secondary, #888)', lineHeight: 1.5 }}>
                 Use <code>{'${{' + (data.item_variable || 'item') + '.campo}}'}</code> dentro do corpo do loop para acessar cada item.
               </small>
+              <div style={{
+                marginTop: '0.5rem',
+                padding: '0.5rem 0.75rem',
+                backgroundColor: 'rgba(99, 102, 241, 0.06)',
+                border: '1px solid rgba(99, 102, 241, 0.15)',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
+                color: 'var(--text-secondary, #888)',
+                lineHeight: 1.6,
+              }}>
+                <strong style={{ color: 'var(--text-primary, #e0e0e0)' }}>Campos disponiveis dentro do loop:</strong>
+                <div style={{ paddingLeft: '0.5rem', marginTop: '0.2rem' }}>
+                  • <code style={{ color: '#818cf8' }}>{'${{' + (data.item_variable || 'item') + '}}'}</code> — item completo<br />
+                  • <code style={{ color: '#818cf8' }}>{'${{' + (data.item_variable || 'item') + '.campo}}'}</code> — campo especifico do item<br />
+                  • <code style={{ color: '#818cf8' }}>{'${{loop.index}}'}</code> — indice da iteracao (0, 1, 2...)<br />
+                </div>
+                <div style={{ marginTop: '0.3rem' }}>
+                  <strong style={{ color: 'var(--text-primary, #e0e0e0)' }}>Se veio de "Agrupar lista":</strong>
+                </div>
+                <div style={{ paddingLeft: '0.5rem', marginTop: '0.2rem' }}>
+                  • <code style={{ color: '#818cf8' }}>{'${{' + (data.item_variable || 'item') + '.key}}'}</code> — valor do agrupamento<br />
+                  • <code style={{ color: '#818cf8' }}>{'${{' + (data.item_variable || 'item') + '.linhas}}'}</code> — array de itens do grupo (use com Formatar lista)<br />
+                  • <code style={{ color: '#818cf8' }}>{'${{' + (data.item_variable || 'item') + '.total_linhas}}'}</code> — quantidade de itens no grupo<br />
+                  • <code style={{ color: '#818cf8' }}>{'${{' + (data.item_variable || 'item') + '.campo}}'}</code> — valores concatenados com \\n
+                </div>
+              </div>
             </div>
 
             <div className="form-group">
@@ -3612,6 +3686,11 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                         <option value="format_number">Formatar número</option>
                         <option value="format_currency">Formatar moeda</option>
                       </optgroup>
+                      <optgroup label="Listas">
+                        <option value="format_list">Formatar lista</option>
+                        <option value="sum_field">Somar campo da lista</option>
+                        <option value="group_list">Agrupar lista por campo</option>
+                      </optgroup>
                     </select>
                     <button
                       type="button"
@@ -3762,6 +3841,146 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                           updateData('operations', ops)
                         }}
                       />
+                    </div>
+                  )}
+
+                  {op.type === 'format_list' && (
+                    <div style={{ marginTop: '0.4rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      <input
+                        type="text"
+                        placeholder="Variavel da lista (ex: linhas)"
+                        value={op.source || ''}
+                        onChange={(e) => {
+                          const ops = [...(data.operations || [])]
+                          ops[index] = { ...ops[index], source: e.target.value }
+                          updateData('operations', ops)
+                        }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Template por item (ex: {vencimento}: R$ {valor})"
+                        value={op.value || ''}
+                        onChange={(e) => {
+                          const ops = [...(data.operations || [])]
+                          ops[index] = { ...ops[index], value: e.target.value }
+                          updateData('operations', ops)
+                        }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Separador (padrão: \n)"
+                        value={op.separator || ''}
+                        onChange={(e) => {
+                          const ops = [...(data.operations || [])]
+                          ops[index] = { ...ops[index], separator: e.target.value }
+                          updateData('operations', ops)
+                        }}
+                      />
+                      <div style={{
+                        padding: '0.5rem 0.75rem',
+                        backgroundColor: 'rgba(99, 102, 241, 0.06)',
+                        border: '1px solid rgba(99, 102, 241, 0.15)',
+                        borderRadius: '6px',
+                        fontSize: '0.72rem',
+                        color: 'var(--text-secondary, #888)',
+                        lineHeight: 1.5,
+                      }}>
+                        Percorre cada item da lista e aplica o template. Use <code style={{ color: '#818cf8' }}>{'{campo}'}</code> para inserir valores de cada item.
+                        {loopContext && (
+                          <span> Dentro de um loop, use <code style={{ color: '#818cf8' }}>{loopContext.item_variable || 'item'}.linhas</code> como variavel.</span>
+                        )}
+                        <br />
+                        <span style={{ color: '#64748b' }}>Ex: <code>{'{vencimento}: R$ {valor}'}</code> → <code>27/01: R$ 50</code></span>
+                      </div>
+                    </div>
+                  )}
+
+                  {op.type === 'sum_field' && (
+                    <div style={{ marginTop: '0.4rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      <div style={{ display: 'flex', gap: '0.3rem' }}>
+                        <input
+                          type="text"
+                          placeholder="Variavel da lista (ex: linhas)"
+                          value={op.source || ''}
+                          onChange={(e) => {
+                            const ops = [...(data.operations || [])]
+                            ops[index] = { ...ops[index], source: e.target.value }
+                            updateData('operations', ops)
+                          }}
+                          style={{ flex: 1 }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Campo a somar (ex: valor)"
+                          value={op.value || ''}
+                          onChange={(e) => {
+                            const ops = [...(data.operations || [])]
+                            ops[index] = { ...ops[index], value: e.target.value }
+                            updateData('operations', ops)
+                          }}
+                          style={{ flex: 1 }}
+                        />
+                      </div>
+                      <small style={{ color: 'var(--text-secondary, #888)', lineHeight: 1.4 }}>
+                        Soma todos os valores numericos do campo especificado em cada item da lista.
+                        {loopContext && (
+                          <span> Dentro de um loop, use <code style={{ color: '#818cf8' }}>{loopContext.item_variable || 'item'}.linhas</code> como variavel.</span>
+                        )}
+                      </small>
+                    </div>
+                  )}
+
+                  {op.type === 'group_list' && (
+                    <div style={{ marginTop: '0.4rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      <input
+                        type="text"
+                        placeholder="Variavel da lista (ex: pedidos)"
+                        value={op.source || ''}
+                        onChange={(e) => {
+                          const ops = [...(data.operations || [])]
+                          ops[index] = { ...ops[index], source: e.target.value }
+                          updateData('operations', ops)
+                        }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Campo para agrupar (ex: cliente)"
+                        value={op.value || ''}
+                        onChange={(e) => {
+                          const ops = [...(data.operations || [])]
+                          ops[index] = { ...ops[index], value: e.target.value }
+                          updateData('operations', ops)
+                        }}
+                      />
+                      <div style={{
+                        marginTop: '0.3rem',
+                        padding: '0.6rem 0.75rem',
+                        backgroundColor: 'rgba(99, 102, 241, 0.06)',
+                        border: '1px solid rgba(99, 102, 241, 0.15)',
+                        borderRadius: '6px',
+                        fontSize: '0.75rem',
+                        color: 'var(--text-secondary, #888)',
+                        lineHeight: 1.6,
+                      }}>
+                        <div style={{ fontWeight: 600, marginBottom: '0.3rem', color: 'var(--text-primary, #e0e0e0)' }}>
+                          Como funciona:
+                        </div>
+                        <div>O resultado sera salvo em <code style={{ color: '#818cf8' }}>${'{{'}{data.context_key || 'resultado'}{'}}'}  </code> como um array de grupos.</div>
+                        <div style={{ marginTop: '0.3rem' }}>Cada grupo contem:</div>
+                        <div style={{ paddingLeft: '0.5rem', marginTop: '0.15rem' }}>
+                          • <code style={{ color: '#818cf8' }}>key</code> — valor do campo agrupado<br />
+                          • <code style={{ color: '#818cf8' }}>linhas</code> — array com os itens do grupo<br />
+                          • <code style={{ color: '#818cf8' }}>total_linhas</code> — quantidade de itens<br />
+                          • demais campos concatenados com quebra de linha
+                        </div>
+                        <div style={{ marginTop: '0.4rem', fontWeight: 600, color: 'var(--text-primary, #e0e0e0)' }}>
+                          Proximo passo:
+                        </div>
+                        <div>
+                          Conecte um no <strong>Loop</strong> com variavel fonte <code style={{ color: '#818cf8' }}>{data.context_key || 'resultado'}</code>.
+                          Dentro do loop, use <strong>Formatar lista</strong> em <code style={{ color: '#818cf8' }}>item.linhas</code> para montar o texto de cada grupo.
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

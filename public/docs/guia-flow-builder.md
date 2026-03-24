@@ -255,6 +255,166 @@ Altera o status do ticket no MonitChat (em andamento, resolvido, etc.).
 
 Salta para qualquer outro nó do fluxo. Útil para criar loops ou reaproveitar trechos.
 
+### 📝 Expressão
+
+Cria, transforma e calcula valores a partir do contexto da conversa. O resultado é salvo em uma variável do contexto.
+
+**Configuração:**
+- **Template:** Texto base com variáveis `${{variavel}}`
+- **Salvar em:** Nome da variável onde o resultado será armazenado
+- **Modo:** Substituir (sobrescreve) ou Acumular (concatena com valor existente)
+- **Separador:** Para modo acumular, texto usado entre valores (ex: `\n`)
+
+**Operações disponíveis:**
+
+| Grupo | Operação | O que faz | Exemplo |
+|---|---|---|---|
+| **Texto** | MAIÚSCULAS | Converte para maiúsculo | "joao" → "JOAO" |
+| **Texto** | minúsculas | Converte para minúsculo | "JOAO" → "joao" |
+| **Texto** | Remover espaços | Remove espaços início/fim | " oi " → "oi" |
+| **Texto** | Substituir texto | Troca um texto por outro | "oi" → "olá" |
+| **Texto** | Adicionar prefixo | Adiciona texto antes | "R$ " + "100" |
+| **Texto** | Adicionar sufixo | Adiciona texto depois | "100" + " reais" |
+| **Texto** | Recortar texto | Extrai trecho (início/fim) | posição 0 a 3 |
+| **Matemática** | Operação matemática | +, -, ×, ÷, %, arredondar | "100" + 50 = "150" |
+| **Matemática** | Formatar número | Define casas decimais | "1234.5" → "1,234.50" |
+| **Matemática** | Formatar moeda | Formata como moeda | "1234.5" → "R$ 1,234.50" |
+| **Listas** | Formatar lista | Formata cada item de um array | Ver abaixo |
+| **Listas** | Somar campo da lista | Soma campo numérico de um array | Ver abaixo |
+
+#### Operações de Listas (para uso com agendamento de arquivos)
+
+Quando o agendamento importa um arquivo CSV com agrupamento, a variável `linhas` contém um array com os dados de cada linha do grupo. As operações de lista permitem formatar e calcular esses dados.
+
+**Formatar lista (`format_list`):**
+
+Formata cada item do array usando um template e junta tudo com um separador.
+
+| Campo | Descrição | Exemplo |
+|---|---|---|
+| Variável da lista | Nome da variável que contém o array | `linhas` |
+| Template por item | Texto com `{campo}` para cada item | `{vencimento}: R$ {valor}` |
+| Separador | Texto entre cada item (padrão: `\n`) | `\n` |
+
+**Exemplo prático:**
+Se `linhas` contém:
+```json
+[
+  {"vencimento": "27/01/2025", "valor": "50", "codigo": "001"},
+  {"vencimento": "27/03/2025", "valor": "50", "codigo": "002"},
+  {"vencimento": "27/04/2025", "valor": "50", "codigo": "003"}
+]
+```
+
+Com template `{vencimento}: Valor: R$ {valor}` e separador `\n`, o resultado será:
+```
+27/01/2025: Valor: R$ 50
+27/03/2025: Valor: R$ 50
+27/04/2025: Valor: R$ 50
+```
+
+**Somar campo da lista (`sum_field`):**
+
+Soma os valores numéricos de um campo específico em todos os itens do array.
+
+| Campo | Descrição | Exemplo |
+|---|---|---|
+| Variável da lista | Nome da variável que contém o array | `linhas` |
+| Campo a somar | Nome do campo cujos valores serão somados | `valor` |
+
+**Exemplo:** Com o mesmo `linhas` acima e campo `valor`, o resultado será `150`.
+
+**Agrupar lista por campo (`group_list`):**
+
+Agrupa os itens de um array pelo valor de um campo, criando sub-grupos. Funciona com qualquer array no contexto — dados de API, arquivo CSV, etc.
+
+| Campo | Descrição | Exemplo |
+|---|---|---|
+| Variável da lista | Nome da variável que contém o array | `pedidos` |
+| Campo para agrupar | Nome do campo cujos valores definem os grupos | `cliente` |
+
+**Exemplo prático:**
+Se `pedidos` contém:
+```json
+[
+  {"cliente": "João", "telefone": "5511999", "produto": "Sofá", "valor": 2500},
+  {"cliente": "João", "telefone": "5511999", "produto": "Mesa", "valor": 1200},
+  {"cliente": "Maria", "telefone": "5527888", "produto": "Cama", "valor": 3000}
+]
+```
+
+Com campo `cliente` e salvando em `grupos`, o resultado será:
+```json
+[
+  {
+    "key": "João",
+    "cliente": "João",
+    "telefone": "5511999",
+    "linhas": [{"cliente":"João","produto":"Sofá","valor":2500}, {"cliente":"João","produto":"Mesa","valor":1200}],
+    "total_linhas": 2,
+    "produto": "Sofá\nMesa",
+    "valor": "2500\n1200"
+  },
+  {
+    "key": "Maria",
+    "cliente": "Maria",
+    "telefone": "5527888",
+    "linhas": [{"cliente":"Maria","produto":"Cama","valor":3000}],
+    "total_linhas": 1,
+    "produto": "Cama",
+    "valor": "3000"
+  }
+]
+```
+
+Cada grupo contém:
+- `key` — valor do campo agrupado
+- `linhas` — array com os itens originais do grupo
+- `total_linhas` — quantidade de itens
+- Demais campos concatenados com `\n`
+
+**Uso típico:** Após agrupar, use um **Loop** sobre `grupos` e dentro do loop use `format_list` no `item.linhas` para formatar cada grupo.
+
+#### Exemplo completo: Cobrança com múltiplas parcelas
+
+**Fluxo:** Início → Expressão 1 → Expressão 2 → Mensagem → Finalizar
+
+**Expressão 1 (Formatar detalhes):**
+- Operação: Formatar lista
+- Variável: `linhas`
+- Template: `{vencimento}: R$ {valor}`
+- Salvar em: `detalhes`
+
+**Expressão 2 (Calcular total):**
+- Operação: Somar campo da lista
+- Variável: `linhas`
+- Campo: `valor`
+- Salvar em: `total`
+
+**Mensagem:**
+```
+Olá ${{nome}}, segue os vencimentos da sua fatura:
+
+${{detalhes}}
+
+Total: R$ ${{total}}
+
+Obrigado!
+```
+
+**Resultado final:**
+```
+Olá João, segue os vencimentos da sua fatura:
+
+27/01/2025: R$ 50
+27/03/2025: R$ 50
+27/04/2025: R$ 50
+
+Total: R$ 150
+
+Obrigado!
+```
+
 ### 🏁 Finalizar
 
 Encerra a conversa, envia mensagem de despedida e reseta o contexto. A próxima mensagem do usuário reinicia o fluxo.
@@ -889,6 +1049,202 @@ Você pode ter vários fluxos ativos simultaneamente. Cada fluxo responde nas co
 4. Salve
 
 **Se nenhuma conta for selecionada, o fluxo não responde a ninguém** — mesmo estando ativo.
+
+---
+
+## Agendamento de Fluxos
+
+O agendamento permite disparar fluxos automaticamente em horários definidos, sem depender de uma mensagem do usuário. Ideal para campanhas, cobranças, lembretes e notificações.
+
+### Modos de Execução
+
+| Modo | Descrição |
+|---|---|
+| **Passivo** | O fluxo só responde quando o usuário manda mensagem (padrão) |
+| **Ativo** | O fluxo só executa via agendamento — mensagens recebidas são ignoradas |
+| **Ambos** | O fluxo responde mensagens E executa via agendamento |
+
+**Importante:** Se o fluxo está como **Ativo** e o usuário responde uma mensagem enviada pelo agendamento, a resposta será **ignorada**. Use **Ambos** se precisar que o fluxo continue a conversa após o disparo.
+
+### Tipos de Agendamento
+
+| Tipo | Descrição | Exemplo |
+|---|---|---|
+| **Intervalo** | Executa a cada N minutos | A cada 30 minutos |
+| **Diário** | Executa em horários específicos | Todos os dias às 08:00 e 14:00 |
+| **Semanal** | Executa em dias e horários específicos | Segunda e quarta às 10:00 |
+
+### Regras de Bloqueio
+
+- **Bloquear fins de semana:** Não executa sábado/domingo
+- **Bloquear feriados:** Não executa em feriados
+- **Datas bloqueadas:** Selecione datas específicas no calendário
+- **Janela de horário:** Define horário mínimo e máximo (ex: 08:00 a 18:00)
+
+### Tipos de Destinatário
+
+#### Sem destinatário fixo
+
+O fluxo é executado sem um alvo pré-definido. Ele decide internamente para quais contatos enviar usando sua própria lógica (nós API Request, etc.).
+
+#### Lista de números
+
+Cole uma lista de telefones manualmente (um por linha). O fluxo é executado uma vez para cada número.
+
+```
+5511999998888
+5511999997777
+5521988886666
+```
+
+#### Grupo do MonitChat
+
+Selecione grupos de contatos diretamente do MonitChat. Os contatos são buscados **automaticamente a cada execução** — se alguém for adicionado ou removido do grupo, a próxima execução já reflete.
+
+#### Arquivo CSV/TXT
+
+Importe um arquivo com dados dos destinatários. **A coluna `telefone` é obrigatória.** As demais colunas ficam disponíveis como variáveis no contexto de cada sessão.
+
+**Formato do arquivo:**
+- Delimitador padrão: `;` (ponto e vírgula)
+- Também aceita `,` (vírgula) e TAB
+- Primeira linha deve ser o cabeçalho
+- Extensões aceitas: `.csv`, `.txt`, `.tsv`
+
+**Exemplo de arquivo:**
+```
+telefone;nome;vencimento;valor;codigo
+5511999998888;João Silva;27/01/2025;50;001
+5511999998888;João Silva;27/03/2025;50;002
+5511999998888;João Silva;27/04/2025;50;003
+5527999997777;Maria Santos;15/02/2025;120;004
+```
+
+##### Variáveis disponíveis
+
+Cada coluna do arquivo vira uma variável no contexto da sessão, acessível com `${{nome_da_coluna}}`:
+
+| Coluna no arquivo | Variável no fluxo |
+|---|---|
+| `telefone` | `${{telefone}}` |
+| `nome` | `${{nome}}` |
+| `vencimento` | `${{vencimento}}` |
+| `valor` | `${{valor}}` |
+| `codigo` | `${{codigo}}` |
+
+##### Agrupamento por coluna
+
+Quando o mesmo telefone (ou outro campo) aparece em várias linhas, você pode **agrupar** para enviar apenas uma mensagem com todos os dados.
+
+**Como configurar:**
+1. Faça upload do arquivo
+2. No dropdown "Agrupar por", selecione a coluna desejada (ex: `telefone`)
+3. Linhas com o mesmo valor na coluna escolhida serão combinadas em uma única execução
+
+**O que acontece no contexto quando agrupa:**
+
+| Variável | Conteúdo | Exemplo |
+|---|---|---|
+| `${{telefone}}` | Primeiro telefone do grupo | `5511999998888` |
+| `${{nome}}` | Valores concatenados com `\n` | `João Silva` |
+| `${{vencimento}}` | Valores concatenados com `\n` | `27/01/2025\n27/03/2025\n27/04/2025` |
+| `${{valor}}` | Valores concatenados com `\n` | `50\n50\n50` |
+| `${{linhas}}` | **Array completo** com todas as linhas | `[{telefone, nome, vencimento, valor, codigo}, ...]` |
+| `${{total_linhas}}` | Quantidade de linhas no grupo | `3` |
+
+**Para formatar os dados agrupados**, use o nó **Expressão** com as operações de lista:
+
+1. **Formatar lista** — monta o texto formatado a partir do array `linhas`
+2. **Somar campo da lista** — soma valores numéricos (ex: total da fatura)
+
+Veja a seção [📝 Expressão](#-expressão) para exemplos completos.
+
+##### Exemplo passo a passo: Cobrança por WhatsApp
+
+**1. Arquivo CSV:**
+```
+telefone;nome;vencimento;valor
+5511999998888;João;27/01/2025;50
+5511999998888;João;27/03/2025;50
+5511999998888;João;27/04/2025;50
+5527999997777;Maria;15/02/2025;120
+```
+
+**2. Configuração do agendamento:**
+- Tipo: Diário, às 09:00
+- Modo: Ativo
+- Destinatário: Arquivo CSV
+- Agrupar por: `telefone`
+
+**3. Fluxo:**
+```
+Início → Expressão (formatar) → Expressão (somar) → Template WhatsApp → Fim
+```
+
+**4. Expressão 1 — Formatar detalhes:**
+- Operação: Formatar lista
+- Variável: `linhas`
+- Template por item: `{vencimento}: R$ {valor}`
+- Salvar em: `detalhes`
+
+**5. Expressão 2 — Calcular total:**
+- Operação: Somar campo da lista
+- Variável: `linhas`
+- Campo: `valor`
+- Salvar em: `total`
+
+**6. Mensagem/Template:**
+```
+Olá ${{nome}}, segue os vencimentos da sua fatura:
+
+${{detalhes}}
+
+Total: R$ ${{total}}
+
+Obrigado!
+```
+
+**7. Resultado — João recebe:**
+```
+Olá João, segue os vencimentos da sua fatura:
+
+27/01/2025: R$ 50
+27/03/2025: R$ 50
+27/04/2025: R$ 50
+
+Total: R$ 150
+
+Obrigado!
+```
+
+**8. Resultado — Maria recebe:**
+```
+Olá Maria, segue os vencimentos da sua fatura:
+
+15/02/2025: R$ 120
+
+Total: R$ 120
+
+Obrigado!
+```
+
+#### Dinâmico
+
+O fluxo utiliza nós `api_request` ou lógica customizada para buscar a lista de destinatários a cada execução.
+
+### Contexto Inicial
+
+Em qualquer tipo de destinatário, você pode definir um **contexto inicial** em JSON. Essas variáveis estarão disponíveis no fluxo em toda execução agendada.
+
+```json
+{
+  "campanha": "black-friday",
+  "prioridade": "alta",
+  "origem": "agendamento"
+}
+```
+
+Use no fluxo com `${{campanha}}`, `${{prioridade}}`, etc.
 
 ---
 
