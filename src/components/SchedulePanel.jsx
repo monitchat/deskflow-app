@@ -5,6 +5,7 @@ import ScheduleTimeGrid from './ScheduleTimeGrid'
 import ScheduleBlockedDates from './ScheduleBlockedDates'
 import ScheduleTargets from './ScheduleTargets'
 import ScheduleExecutionHistory from './ScheduleExecutionHistory'
+import DateTimePicker from './DateTimePicker'
 
 const TABS = [
   { id: 'config', label: 'Configuracao' },
@@ -14,6 +15,7 @@ const TABS = [
 ]
 
 const SCHEDULE_TYPES = [
+  { value: 'once', label: 'Unica vez' },
   { value: 'interval', label: 'Intervalo' },
   { value: 'daily', label: 'Diario' },
   { value: 'weekly', label: 'Semanal' },
@@ -86,6 +88,7 @@ function SchedulePanel({ flowId, isNewFlow, flowName, flowDescription, nodes, ed
           target_type: existing.target_type || 'none',
           target_config: existing.target_config || { numbers: [] },
           execution_config: existing.execution_config || { initial_context: {}, max_concurrent: 10 },
+          once_at: existing.execution_config?.once_at || '',
           timezone: existing.timezone || 'America/Sao_Paulo',
         })
       }
@@ -166,12 +169,23 @@ function SchedulePanel({ flowId, isNewFlow, flowName, flowDescription, nodes, ed
         }
       }
 
+      // Prepara payload do agendamento
+      const payload = { ...schedule }
+      // Injeta once_at no execution_config
+      if (payload.schedule_type === 'once' && payload.once_at) {
+        payload.execution_config = {
+          ...payload.execution_config,
+          once_at: payload.once_at,
+        }
+      }
+      delete payload.once_at
+
       // Agora salva o agendamento
       let res
       if (scheduleId) {
-        res = await api.put(`/api/v1/flows/${targetFlowId}/schedules/${scheduleId}`, schedule)
+        res = await api.put(`/api/v1/flows/${targetFlowId}/schedules/${scheduleId}`, payload)
       } else {
-        res = await api.post(`/api/v1/flows/${targetFlowId}/schedules`, schedule)
+        res = await api.post(`/api/v1/flows/${targetFlowId}/schedules`, payload)
       }
 
       if (res.data.success) {
@@ -588,6 +602,36 @@ function SchedulePanel({ flowId, isNewFlow, flowName, flowDescription, nodes, ed
           </div>
         </div>
 
+        {/* Once config */}
+        {schedule.schedule_type === 'once' && (
+          <div>
+            <label style={labelStyle}>Data e hora da execucao</label>
+            <DateTimePicker
+              value={schedule.once_at || null}
+              onChange={(iso) => {
+                if (!iso) {
+                  updateField('once_at', '')
+                  return
+                }
+                const d = new Date(iso)
+                const pad = (n) => String(n).padStart(2, '0')
+                const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+                updateField('once_at', local)
+              }}
+              showTime
+              placeholder="Selecionar data e hora..."
+            />
+            <div style={{
+              fontSize: '0.72rem',
+              color: 'var(--text-dim, #64748b)',
+              marginTop: '0.3rem',
+              lineHeight: 1.4,
+            }}>
+              O fluxo sera executado uma unica vez na data e hora definida. Apos a execucao, o agendamento sera desativado automaticamente.
+            </div>
+          </div>
+        )}
+
         {/* Interval config */}
         {schedule.schedule_type === 'interval' && (
           <div>
@@ -786,20 +830,25 @@ function SchedulePanel({ flowId, isNewFlow, flowName, flowDescription, nodes, ed
         <div>
           <label style={labelStyle}>Periodo de validade (opcional)</label>
           <p style={descStyle}>Defina um periodo em que o agendamento estara ativo.</p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <input
-              type="date"
-              value={schedule.valid_from || ''}
-              onChange={(e) => updateField('valid_from', e.target.value || null)}
-              style={{ ...inputStyle, width: '150px' }}
-            />
-            <span style={{ fontSize: '0.82rem', color: 'var(--text-dim, #64748b)' }}>ate</span>
-            <input
-              type="date"
-              value={schedule.valid_until || ''}
-              onChange={(e) => updateField('valid_until', e.target.value || null)}
-              style={{ ...inputStyle, width: '150px' }}
-            />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-dim, #64748b)', width: '30px', flexShrink: 0 }}>De</span>
+              <DateTimePicker
+                value={schedule.valid_from || null}
+                onChange={(iso) => updateField('valid_from', iso || null)}
+                showTime
+                placeholder="Inicio (opcional)"
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-dim, #64748b)', width: '30px', flexShrink: 0 }}>Ate</span>
+              <DateTimePicker
+                value={schedule.valid_until || null}
+                onChange={(iso) => updateField('valid_until', iso || null)}
+                showTime
+                placeholder="Fim (opcional)"
+              />
+            </div>
           </div>
         </div>
 

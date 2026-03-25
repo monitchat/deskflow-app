@@ -13,6 +13,7 @@ function ScheduleExecutionHistory({ flowId, scheduleId, onExecuteNow }) {
   const [loading, setLoading] = useState(true)
   const [executing, setExecuting] = useState(false)
   const [expandedRow, setExpandedRow] = useState(null)
+  const [expandedDetails, setExpandedDetails] = useState({})
 
   useEffect(() => {
     if (scheduleId) {
@@ -261,6 +262,8 @@ function ScheduleExecutionHistory({ flowId, scheduleId, onExecuteNow }) {
                   }}>
                     {entry.error_details.map((item, i) => {
                       const isSuccess = item.success !== false && !item.error
+                      const details = item.details || []
+                      const hasPayload = details.length > 0 || item.error
                       return (
                         <div key={i} style={{
                           padding: '0.4rem 0',
@@ -289,21 +292,123 @@ function ScheduleExecutionHistory({ flowId, scheduleId, onExecuteNow }) {
                             }}>
                               {isSuccess ? 'Enviado' : 'Falhou'}
                             </span>
-                            {item.sent > 0 && (
+                            {(item.sent > 0 || item.failed > 0) && (
                               <span style={{ color: 'var(--text-dim)', fontSize: '0.65rem' }}>
-                                {item.sent} msg
+                                {item.sent > 0 && `${item.sent} enviada${item.sent > 1 ? 's' : ''}`}
+                                {item.sent > 0 && item.failed > 0 && ', '}
+                                {item.failed > 0 && <span style={{ color: '#ef4444' }}>{item.failed} falha{item.failed > 1 ? 's' : ''}</span>}
                               </span>
                             )}
                           </div>
+
+                          {/* Erro geral */}
                           {item.error && (
                             <div style={{
                               color: '#ef4444',
                               fontSize: '0.7rem',
-                              padding: '0.25rem 0 0 1.4rem',
+                              padding: '0.3rem 0.5rem',
+                              marginTop: '0.3rem',
+                              marginLeft: '1.4rem',
+                              backgroundColor: 'rgba(239, 68, 68, 0.06)',
+                              border: '1px solid rgba(239, 68, 68, 0.12)',
+                              borderRadius: '4px',
                               wordBreak: 'break-word',
                               lineHeight: 1.4,
                             }}>
                               {item.error}
+                            </div>
+                          )}
+
+                          {/* Detalhes de cada reply */}
+                          {details.length > 0 && (
+                            <div style={{
+                              marginTop: '0.3rem',
+                              marginLeft: '1.4rem',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.2rem',
+                            }}>
+                              {details.map((d, j) => {
+                                const detailKey = `${entry.id || idx}-${i}-${j}`
+                                const isDetailExpanded = expandedDetails[detailKey]
+                                const previewText = d.preview || ''
+                                const isLong = previewText.length > 100
+                                return (
+                                  <div key={j} style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.15rem',
+                                    fontSize: '0.68rem',
+                                    padding: '0.3rem 0.5rem',
+                                    backgroundColor: d.sent
+                                      ? 'rgba(34, 197, 94, 0.05)'
+                                      : 'rgba(239, 68, 68, 0.05)',
+                                    borderRadius: '4px',
+                                  }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                      <span style={{
+                                        color: d.sent ? '#22c55e' : '#ef4444',
+                                        fontSize: '0.6rem',
+                                      }}>
+                                        {d.sent ? '✓' : '✗'}
+                                      </span>
+                                      <span style={{
+                                        padding: '0.05rem 0.3rem',
+                                        borderRadius: '3px',
+                                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                        color: '#818cf8',
+                                        fontFamily: 'monospace',
+                                        fontSize: '0.65rem',
+                                      }}>
+                                        {d.type || '?'}
+                                      </span>
+                                      {d.error && (
+                                        <span style={{ color: '#ef4444', wordBreak: 'break-word' }}>
+                                          {d.error}
+                                        </span>
+                                      )}
+                                      {previewText && (
+                                        <span
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setExpandedDetails(prev => ({
+                                              ...prev,
+                                              [detailKey]: !prev[detailKey],
+                                            }))
+                                          }}
+                                          style={{
+                                            marginLeft: 'auto',
+                                            cursor: 'pointer',
+                                            color: '#818cf8',
+                                            fontSize: '0.62rem',
+                                            fontWeight: 500,
+                                            whiteSpace: 'nowrap',
+                                          }}
+                                        >
+                                          {isDetailExpanded ? 'ocultar' : 'ver payload'}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {previewText && isDetailExpanded && (
+                                      <div style={{
+                                        color: 'var(--text-secondary, #cbd5e1)',
+                                        fontSize: '0.7rem',
+                                        lineHeight: 1.5,
+                                        paddingLeft: '1rem',
+                                        whiteSpace: 'pre-wrap',
+                                        wordBreak: 'break-word',
+                                        padding: '0.4rem 0.6rem',
+                                        marginTop: '0.2rem',
+                                        backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                                        borderRadius: '4px',
+                                        fontFamily: 'monospace',
+                                      }}>
+                                        {previewText}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
                             </div>
                           )}
                         </div>
