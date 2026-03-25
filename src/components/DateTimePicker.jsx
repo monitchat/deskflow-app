@@ -5,26 +5,50 @@ import 'react-datepicker/dist/react-datepicker.css'
 
 registerLocale('pt-BR', ptBR)
 
-const CustomInput = forwardRef(({ value, onClick, placeholder, style }, ref) => (
-  <button
-    type="button"
-    onClick={onClick}
-    ref={ref}
-    style={{
-      padding: '0.5rem 0.75rem',
-      backgroundColor: 'var(--bg-input, #0f172a)',
-      border: '1px solid var(--border, #334155)',
-      borderRadius: '6px',
-      color: value ? 'var(--text-primary, #f1f5f9)' : 'var(--text-dim, #64748b)',
-      fontSize: '0.82rem',
-      cursor: 'pointer',
-      textAlign: 'left',
-      width: '100%',
-      ...style,
-    }}
-  >
-    {value || placeholder || 'Selecionar data...'}
-  </button>
+const CustomInput = forwardRef(({ value, onClick, onClear, placeholder, style }, ref) => (
+  <div style={{ position: 'relative', width: '100%', ...style }}>
+    <button
+      type="button"
+      onClick={onClick}
+      ref={ref}
+      style={{
+        padding: '0.55rem 0.75rem',
+        paddingRight: value ? '2rem' : '0.75rem',
+        backgroundColor: 'var(--bg-input, #0f172a)',
+        border: '1px solid var(--border, #334155)',
+        borderRadius: '6px',
+        color: value ? 'var(--text-primary, #f1f5f9)' : 'var(--text-dim, #64748b)',
+        fontSize: '0.82rem',
+        cursor: 'pointer',
+        textAlign: 'left',
+        width: '100%',
+        minHeight: '36px',
+      }}
+    >
+      {value || placeholder || 'Selecionar data...'}
+    </button>
+    {value && onClear && (
+      <span
+        onClick={(e) => { e.stopPropagation(); onClear() }}
+        style={{
+          position: 'absolute',
+          right: '0.5rem',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          cursor: 'pointer',
+          color: 'var(--text-dim, #64748b)',
+          fontSize: '0.85rem',
+          lineHeight: 1,
+          padding: '0.15rem',
+          borderRadius: '50%',
+        }}
+        onMouseEnter={(e) => { e.target.style.color = '#ef4444' }}
+        onMouseLeave={(e) => { e.target.style.color = 'var(--text-dim, #64748b)' }}
+      >
+        &times;
+      </span>
+    )}
+  </div>
 ))
 
 CustomInput.displayName = 'CustomInput'
@@ -40,7 +64,9 @@ function DateTimePicker({ value, onChange, showTime = false, placeholder, dateFo
     onChange(date.toISOString())
   }
 
-  const format = dateFormat || (showTime ? 'dd/MM/yyyy HH:mm' : 'dd/MM/yyyy')
+  const handleClear = () => onChange(null)
+
+  const format = dateFormat || (showTime ? 'dd/MM/yyyy  HH:mm' : 'dd/MM/yyyy')
 
   return (
     <>
@@ -146,10 +172,9 @@ function DateTimePicker({ value, onChange, showTime = false, placeholder, dateFo
         dateFormat={format}
         locale="pt-BR"
         placeholderText={placeholder}
-        customInput={<CustomInput style={style} />}
+        customInput={<CustomInput onClear={handleClear} style={style} />}
         popperClassName="dtp-popper"
         popperPlacement="bottom-start"
-        isClearable
       />
     </>
   )
