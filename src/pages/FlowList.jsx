@@ -650,8 +650,8 @@ function FlowList() {
                     {flow.execution_mode === 'active' ? 'Ativo' : 'Ambos'}
                   </span>
                 )}
-                {/* Ícone de agendamento */}
-                {flow.has_active_schedule && (
+                {/* Ícone de agendamento (só para flows ativos ou ambos) */}
+                {flow.has_active_schedule && (flow.execution_mode === 'active' || flow.execution_mode === 'both') && (
                   <span
                     title="Agendamento ativo"
                     style={{
@@ -718,26 +718,28 @@ function FlowList() {
                     >
                       Contas
                     </button>
-                    <button
-                      style={{
-                        ...styles.btnToggle,
-                        padding: '0.4rem 0.55rem',
-                        fontSize: '1rem',
-                        lineHeight: 1,
-                      }}
-                      onClick={(e) => { e.stopPropagation(); setScheduleFlowId(flow.id) }}
-                      onMouseEnter={(e) => {
-                        e.target.style.borderColor = '#f59e0b'
-                        e.target.style.color = '#f59e0b'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.borderColor = 'var(--border)'
-                        e.target.style.color = 'var(--text-muted)'
-                      }}
-                      title="Agendamento"
-                    >
-                      &#9200;
-                    </button>
+                    {(flow.execution_mode === 'active' || flow.execution_mode === 'both') && (
+                      <button
+                        style={{
+                          ...styles.btnToggle,
+                          padding: '0.4rem 0.55rem',
+                          fontSize: '1rem',
+                          lineHeight: 1,
+                        }}
+                        onClick={(e) => { e.stopPropagation(); setScheduleFlowId(flow.id) }}
+                        onMouseEnter={(e) => {
+                          e.target.style.borderColor = '#f59e0b'
+                          e.target.style.color = '#f59e0b'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.borderColor = 'var(--border)'
+                          e.target.style.color = 'var(--text-muted)'
+                        }}
+                        title="Agendamento"
+                      >
+                        &#9200;
+                      </button>
+                    )}
                   </>
                 )}
                 {isAdmin && (
