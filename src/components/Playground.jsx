@@ -339,6 +339,7 @@ function Playground({ flowId, onClose }) {
             ))}
           </div>
         )}
+        <span className="pg-timestamp">{messageData.timestamp ? new Date(messageData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
       </div>
     )
   }
@@ -444,6 +445,7 @@ function Playground({ flowId, onClose }) {
             {message.type === 'user' && (
               <div className="pg-bubble pg-bubble-user">
                 {message.text}
+                <span className="pg-timestamp">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
               </div>
             )}
 

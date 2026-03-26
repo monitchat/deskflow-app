@@ -1018,6 +1018,19 @@ body {
   box-shadow: var(--card-shadow);
 }
 
+.pg-timestamp {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--text-muted, #64748b);
+  text-align: right;
+  margin-top: 0.25rem;
+  opacity: 0.7;
+}
+
+.pg-bubble-user .pg-timestamp {
+  color: rgba(255, 255, 255, 0.7);
+}
+
 .pg-bubble-error {
   background-color: rgba(239, 68, 68, 0.1);
   color: #ef4444;
