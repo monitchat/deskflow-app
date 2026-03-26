@@ -133,7 +133,19 @@ function Playground({ flowId, onClose }) {
           timestamp: new Date()
         }))
 
-      setMessages(prev => [...prev, ...botMessages])
+      // Respeita delay entre mensagens quebradas
+      const immediate = botMessages.filter(m => !m.data.delay)
+      const delayed = botMessages.filter(m => m.data.delay)
+
+      if (immediate.length > 0) {
+        setMessages(prev => [...prev, ...immediate])
+      }
+
+      delayed.forEach(msg => {
+        setTimeout(() => {
+          setMessages(prev => [...prev, msg])
+        }, msg.data.delay * 1000)
+      })
     } catch (error) {
       console.error('Error sending message:', error)
       setMessages(prev => [...prev, {

@@ -4951,6 +4951,56 @@ Regras:
             </div>
 
             <div className="form-group">
+              <label>Quebrar mensagens longas (caracteres)</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="number"
+                  value={data.max_message_length ?? 0}
+                  onChange={(e) => updateData('max_message_length', parseInt(e.target.value) || 0)}
+                  min="0"
+                  max="4096"
+                  step="100"
+                  style={{ width: '100px' }}
+                />
+                <small style={{ color: '#666', flex: 1 }}>
+                  {data.max_message_length > 0
+                    ? `Quebra em mensagens de até ${data.max_message_length} caracteres`
+                    : 'Desativado — envia tudo em uma mensagem'
+                  }
+                </small>
+              </div>
+              <FieldHelper
+                description="Quando a resposta da IA é muito longa, divide em múltiplas mensagens menores. A quebra é feita de forma inteligente: primeiro por parágrafos, depois por frases, nunca no meio de uma palavra. Valor 0 = desativado. Recomendado: 800-1500 caracteres."
+              />
+            </div>
+
+            {data.max_message_length > 0 && (
+              <div className="form-group">
+                <label>Delay entre mensagens quebradas (segundos)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="number"
+                    value={data.message_split_delay ?? 0}
+                    onChange={(e) => updateData('message_split_delay', parseFloat(e.target.value) || 0)}
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    style={{ width: '80px' }}
+                  />
+                  <small style={{ color: '#666', flex: 1 }}>
+                    {data.message_split_delay > 0
+                      ? `Aguarda ${data.message_split_delay}s entre cada parte`
+                      : 'Sem delay — envia todas as partes de uma vez'
+                    }
+                  </small>
+                </div>
+                <FieldHelper
+                  description="Intervalo entre o envio de cada parte da mensagem quebrada. Simula uma digitação mais natural. Valor 0 = sem delay. Recomendado: 1-3 segundos."
+                />
+              </div>
+            )}
+
+            <div className="form-group">
               <label>Debounce (segundos)</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <input
