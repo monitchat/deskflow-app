@@ -617,8 +617,8 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
       fetchSessions()
     }
 
-    // Carrega departamentos se for transfer ou ai_agent
-    if (node.type === 'transfer' || node.type === 'ai_agent') {
+    // Carrega departamentos se for transfer, ai_agent, ou nós com lembretes
+    if (['transfer', 'ai_agent', 'message', 'button', 'list', 'router', 'input'].includes(node.type)) {
       fetchDepartments()
     }
 
@@ -859,13 +859,28 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
               </select>
 
               {cfg.final_action === 'transfer' && (
-                <input
-                  type="text"
-                  value={cfg.final_action_department_id || ''}
-                  onChange={(e) => updateCfg('final_action_department_id', e.target.value)}
-                  placeholder="ID do departamento"
-                  style={{ width: '100%', marginBottom: '0.4rem' }}
-                />
+                departments.length > 0 ? (
+                  <select
+                    value={cfg.final_action_department_id || ''}
+                    onChange={(e) => updateCfg('final_action_department_id', e.target.value ? parseInt(e.target.value) : '')}
+                    style={{ width: '100%', marginBottom: '0.4rem' }}
+                  >
+                    <option value="">Selecione um departamento</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.name} (ID: {dept.id})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="number"
+                    value={cfg.final_action_department_id || ''}
+                    onChange={(e) => updateCfg('final_action_department_id', parseInt(e.target.value) || '')}
+                    placeholder="ID do departamento"
+                    style={{ width: '100%', marginBottom: '0.4rem' }}
+                  />
+                )
               )}
 
               {cfg.final_action === 'go_to_node' && (
