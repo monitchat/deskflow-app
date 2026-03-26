@@ -178,11 +178,15 @@ function Playground({ flowId, onClose }) {
 
         if (pendingMessages.length > 0) {
           console.log('📨 Received pending messages:', pendingMessages)
-          const newMessages = pendingMessages.map(msg => ({
-            type: 'bot',
-            data: msg
-          }))
-          setMessages(prev => [...prev, ...newMessages])
+          const newMessages = pendingMessages
+            .filter(msg => msg.type !== 'end' && msg.type !== 'debug' && msg.type !== 'transfer_success')
+            .map(msg => ({
+              type: 'bot',
+              data: msg
+            }))
+          if (newMessages.length > 0) {
+            setMessages(prev => [...prev, ...newMessages])
+          }
           console.log('✅ Added', newMessages.length, 'messages to chat')
         }
       } catch (error) {
