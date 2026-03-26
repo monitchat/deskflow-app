@@ -722,6 +722,197 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
     setExpandedOption(expandedOption === optionId ? null : optionId)
   }
 
+  const renderInactivityReminders = () => {
+    const cfg = data.inactivity_reminders || {}
+    const reminders = cfg.reminders || []
+
+    const updateCfg = (key, val) => {
+      updateData('inactivity_reminders', { ...cfg, [key]: val })
+    }
+
+    const updateReminder = (idx, key, val) => {
+      const updated = [...reminders]
+      updated[idx] = { ...updated[idx], [key]: val }
+      updateCfg('reminders', updated)
+    }
+
+    const addReminder = () => {
+      if (reminders.length >= 3) return
+      updateCfg('reminders', [...reminders, { delay_minutes: 5, message: '' }])
+    }
+
+    const removeReminder = (idx) => {
+      updateCfg('reminders', reminders.filter((_, i) => i !== idx))
+    }
+
+    return (
+      <div style={{
+        border: '1px solid var(--border, #334155)',
+        borderRadius: '8px',
+        overflow: 'hidden',
+        marginTop: '0.8rem',
+      }}>
+        <div
+          onClick={() => updateData('inactivity_reminders', { ...cfg, enabled: !cfg.enabled })}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '0.6rem 0.8rem',
+            cursor: 'pointer',
+            backgroundColor: 'var(--bg-input, #1e293b)',
+            userSelect: 'none',
+          }}
+        >
+          <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>⏰ Lembretes de Inatividade</span>
+          <span style={{
+            fontSize: '0.72rem',
+            color: cfg.enabled ? '#22c55e' : '#64748b',
+            fontWeight: 600,
+          }}>
+            {cfg.enabled ? `${reminders.length} lembrete(s)` : 'Desabilitado'}
+          </span>
+        </div>
+
+        {cfg.enabled && (
+          <div style={{ padding: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            <small style={{ color: '#64748b', fontSize: '0.72rem' }}>
+              Envia mensagens automáticas quando o cliente não responde. Se após todos os lembretes o cliente continuar inativo, executa a ação final configurada.
+            </small>
+
+            {reminders.map((reminder, idx) => (
+              <div key={idx} style={{
+                padding: '0.6rem',
+                border: '1px solid var(--border, #334155)',
+                borderRadius: '6px',
+                backgroundColor: 'var(--bg-card, #0f172a)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  <span style={{ fontWeight: 600, fontSize: '0.78rem' }}>Lembrete {idx + 1}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeReminder(idx)}
+                    style={{
+                      background: 'none', border: 'none', color: '#ef4444',
+                      cursor: 'pointer', fontSize: '0.85rem', padding: '0.1rem 0.3rem',
+                    }}
+                  >✕</button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                  <label style={{ fontSize: '0.75rem', whiteSpace: 'nowrap', margin: 0 }}>Após</label>
+                  <input
+                    type="number"
+                    value={reminder.delay_minutes ?? 5}
+                    onChange={(e) => updateReminder(idx, 'delay_minutes', parseInt(e.target.value) || 1)}
+                    min="1"
+                    max="1440"
+                    style={{ width: '70px' }}
+                  />
+                  <label style={{ fontSize: '0.75rem', whiteSpace: 'nowrap', margin: 0 }}>min de inatividade</label>
+                </div>
+                <textarea
+                  value={reminder.message || ''}
+                  onChange={(e) => updateReminder(idx, 'message', e.target.value)}
+                  placeholder="Ex: Você ainda está aí? 😊"
+                  rows={2}
+                  style={{ width: '100%', boxSizing: 'border-box' }}
+                />
+              </div>
+            ))}
+
+            {reminders.length < 3 && (
+              <button
+                type="button"
+                onClick={addReminder}
+                style={{
+                  padding: '0.4rem 0.8rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  backgroundColor: 'transparent',
+                  color: '#6366f1',
+                  border: '1px dashed #6366f160',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#6366f115'; e.currentTarget.style.borderColor = '#6366f1' }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.borderColor = '#6366f160' }}
+              >
+                + Adicionar lembrete ({reminders.length}/3)
+              </button>
+            )}
+
+            <hr style={{ margin: '0.3rem 0', borderColor: 'var(--border, #334155)' }} />
+
+            <div>
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.3rem', display: 'block' }}>
+                Ação final (após todos os lembretes)
+              </label>
+              <select
+                value={cfg.final_action || 'end_chat'}
+                onChange={(e) => updateCfg('final_action', e.target.value)}
+                style={{ width: '100%', marginBottom: '0.4rem' }}
+              >
+                <option value="end_chat">🏁 Encerrar atendimento</option>
+                <option value="transfer">👤 Transferir para departamento</option>
+                <option value="go_to_node">🔀 Ir para nó</option>
+              </select>
+
+              {cfg.final_action === 'transfer' && (
+                <input
+                  type="text"
+                  value={cfg.final_action_department_id || ''}
+                  onChange={(e) => updateCfg('final_action_department_id', e.target.value)}
+                  placeholder="ID do departamento"
+                  style={{ width: '100%', marginBottom: '0.4rem' }}
+                />
+              )}
+
+              {cfg.final_action === 'go_to_node' && (
+                <select
+                  value={cfg.final_action_node_id || ''}
+                  onChange={(e) => updateCfg('final_action_node_id', e.target.value)}
+                  style={{ width: '100%', marginBottom: '0.4rem' }}
+                >
+                  <option value="">Selecione um nó</option>
+                  {nodes && nodes.filter(n => n.id !== node.id && n.type !== 'ai_tool').map(n => (
+                    <option key={n.id} value={n.id}>{n.data?.label || n.type} ({n.id})</option>
+                  ))}
+                </select>
+              )}
+
+              <div style={{ marginTop: '0.4rem' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 500, marginBottom: '0.2rem', display: 'block' }}>
+                  Mensagem antes da ação final (opcional)
+                </label>
+                <textarea
+                  value={cfg.final_action_message || ''}
+                  onChange={(e) => updateCfg('final_action_message', e.target.value)}
+                  placeholder="Ex: Estamos encerrando o atendimento por inatividade. Caso precise, é só chamar novamente!"
+                  rows={2}
+                  style={{ width: '100%', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.4rem' }}>
+                <label style={{ fontSize: '0.75rem', whiteSpace: 'nowrap', margin: 0 }}>Executar após</label>
+                <input
+                  type="number"
+                  value={cfg.final_action_delay_minutes ?? 5}
+                  onChange={(e) => updateCfg('final_action_delay_minutes', parseInt(e.target.value) || 1)}
+                  min="1"
+                  max="1440"
+                  style={{ width: '70px' }}
+                />
+                <label style={{ fontSize: '0.75rem', whiteSpace: 'nowrap', margin: 0 }}>min após último lembrete</label>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const renderForm = () => {
     switch (node.type) {
       case 'message':
@@ -752,6 +943,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 🔍 Ver Campos Disponíveis no Contexto
               </button>
             </div>
+            {renderInactivityReminders()}
           </>
         )
 
@@ -813,6 +1005,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 onUseExample={(ex) => updateData('buttons', ex.split('\n'))}
               />
             </div>
+            {renderInactivityReminders()}
           </>
         )
 
@@ -889,6 +1082,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
                 }}
               />
             </div>
+            {renderInactivityReminders()}
           </>
         )
 
@@ -1371,6 +1565,7 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
               <br />
               Conecte cada saída a um nó diferente!
             </div>
+            {renderInactivityReminders()}
           </>
         )
 
@@ -5060,188 +5255,7 @@ Regras:
 
             <hr style={{ margin: '1rem 0', borderColor: '#ddd' }} />
 
-            {/* Lembretes de Inatividade */}
-            <div style={{
-              border: '1px solid var(--border, #334155)',
-              borderRadius: '8px',
-              overflow: 'hidden',
-              marginBottom: '1rem',
-            }}>
-              <div
-                onClick={() => {
-                  const cfg = data.inactivity_reminders || {}
-                  updateData('inactivity_reminders', { ...cfg, enabled: !cfg.enabled })
-                }}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '0.6rem 0.8rem',
-                  cursor: 'pointer',
-                  backgroundColor: 'var(--bg-input, #1e293b)',
-                  userSelect: 'none',
-                }}
-              >
-                <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>⏰ Lembretes de Inatividade</span>
-                <span style={{
-                  fontSize: '0.72rem',
-                  color: (data.inactivity_reminders?.enabled) ? '#22c55e' : '#64748b',
-                  fontWeight: 600,
-                }}>
-                  {(data.inactivity_reminders?.enabled)
-                    ? `${(data.inactivity_reminders?.reminders || []).length} lembrete(s)`
-                    : 'Desabilitado'
-                  }
-                </span>
-              </div>
-
-              {data.inactivity_reminders?.enabled && (() => {
-                const cfg = data.inactivity_reminders || {}
-                const reminders = cfg.reminders || []
-
-                const updateCfg = (key, val) => {
-                  updateData('inactivity_reminders', { ...cfg, [key]: val })
-                }
-
-                const updateReminder = (idx, key, val) => {
-                  const updated = [...reminders]
-                  updated[idx] = { ...updated[idx], [key]: val }
-                  updateCfg('reminders', updated)
-                }
-
-                const addReminder = () => {
-                  if (reminders.length >= 3) return
-                  updateCfg('reminders', [...reminders, { delay_minutes: 5, message: '' }])
-                }
-
-                const removeReminder = (idx) => {
-                  updateCfg('reminders', reminders.filter((_, i) => i !== idx))
-                }
-
-                return (
-                  <div style={{ padding: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                    <small style={{ color: '#64748b', fontSize: '0.72rem' }}>
-                      Envia mensagens automáticas quando o cliente não responde. Se após todos os lembretes o cliente continuar inativo, executa a ação final configurada.
-                    </small>
-
-                    {reminders.map((reminder, idx) => (
-                      <div key={idx} style={{
-                        padding: '0.6rem',
-                        border: '1px solid var(--border, #334155)',
-                        borderRadius: '6px',
-                        backgroundColor: 'var(--bg-card, #0f172a)',
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                          <span style={{ fontWeight: 600, fontSize: '0.78rem' }}>Lembrete {idx + 1}</span>
-                          <button
-                            type="button"
-                            onClick={() => removeReminder(idx)}
-                            style={{
-                              background: 'none', border: 'none', color: '#ef4444',
-                              cursor: 'pointer', fontSize: '0.85rem', padding: '0.1rem 0.3rem',
-                            }}
-                          >✕</button>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                          <label style={{ fontSize: '0.75rem', whiteSpace: 'nowrap', margin: 0 }}>Após</label>
-                          <input
-                            type="number"
-                            value={reminder.delay_minutes ?? 5}
-                            onChange={(e) => updateReminder(idx, 'delay_minutes', parseInt(e.target.value) || 1)}
-                            min="1"
-                            max="1440"
-                            style={{ width: '70px' }}
-                          />
-                          <label style={{ fontSize: '0.75rem', whiteSpace: 'nowrap', margin: 0 }}>min de inatividade</label>
-                        </div>
-                        <textarea
-                          value={reminder.message || ''}
-                          onChange={(e) => updateReminder(idx, 'message', e.target.value)}
-                          placeholder="Ex: Você ainda está aí? 😊"
-                          rows={2}
-                          style={{ width: '100%', boxSizing: 'border-box' }}
-                        />
-                      </div>
-                    ))}
-
-                    {reminders.length < 3 && (
-                      <button
-                        type="button"
-                        onClick={addReminder}
-                        style={{
-                          padding: '0.4rem 0.8rem',
-                          fontSize: '0.78rem',
-                          fontWeight: 600,
-                          backgroundColor: 'transparent',
-                          color: '#6366f1',
-                          border: '1px dashed #6366f160',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#6366f115'; e.currentTarget.style.borderColor = '#6366f1' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.borderColor = '#6366f160' }}
-                      >
-                        + Adicionar lembrete ({reminders.length}/3)
-                      </button>
-                    )}
-
-                    <hr style={{ margin: '0.3rem 0', borderColor: 'var(--border, #334155)' }} />
-
-                    <div>
-                      <label style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.3rem', display: 'block' }}>
-                        Ação final (após todos os lembretes)
-                      </label>
-                      <select
-                        value={cfg.final_action || 'end_chat'}
-                        onChange={(e) => updateCfg('final_action', e.target.value)}
-                        style={{ width: '100%', marginBottom: '0.4rem' }}
-                      >
-                        <option value="end_chat">🏁 Encerrar atendimento</option>
-                        <option value="transfer">👤 Transferir para departamento</option>
-                        <option value="go_to_node">🔀 Ir para nó</option>
-                      </select>
-
-                      {cfg.final_action === 'transfer' && (
-                        <input
-                          type="text"
-                          value={cfg.final_action_department_id || ''}
-                          onChange={(e) => updateCfg('final_action_department_id', e.target.value)}
-                          placeholder="ID do departamento"
-                          style={{ width: '100%', marginBottom: '0.4rem' }}
-                        />
-                      )}
-
-                      {cfg.final_action === 'go_to_node' && (
-                        <select
-                          value={cfg.final_action_node_id || ''}
-                          onChange={(e) => updateCfg('final_action_node_id', e.target.value)}
-                          style={{ width: '100%', marginBottom: '0.4rem' }}
-                        >
-                          <option value="">Selecione um nó</option>
-                          {nodes && nodes.filter(n => n.id !== node.id && n.type !== 'ai_tool').map(n => (
-                            <option key={n.id} value={n.id}>{n.data?.label || n.type} ({n.id})</option>
-                          ))}
-                        </select>
-                      )}
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <label style={{ fontSize: '0.75rem', whiteSpace: 'nowrap', margin: 0 }}>Executar após</label>
-                        <input
-                          type="number"
-                          value={cfg.final_action_delay_minutes ?? 5}
-                          onChange={(e) => updateCfg('final_action_delay_minutes', parseInt(e.target.value) || 1)}
-                          min="1"
-                          max="1440"
-                          style={{ width: '70px' }}
-                        />
-                        <label style={{ fontSize: '0.75rem', whiteSpace: 'nowrap', margin: 0 }}>min após último lembrete</label>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })()}
-            </div>
+            {renderInactivityReminders()}
 
             <hr style={{ margin: '1rem 0', borderColor: '#ddd' }} />
 
@@ -6198,6 +6212,7 @@ Regras:
                 onChange={(e) => updateData('label', e.target.value)}
               />
             </div>
+            {renderInactivityReminders()}
           </>
         )
 
