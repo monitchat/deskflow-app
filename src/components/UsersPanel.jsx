@@ -156,7 +156,8 @@ function UsersPanel({ onClose }) {
       <div style={{
         backgroundColor: 'var(--bg, #fff)',
         borderRadius: '12px',
-        width: '650px',
+        width: '90%',
+        maxWidth: '650px',
         maxHeight: '85vh',
         display: 'flex',
         flexDirection: 'column',

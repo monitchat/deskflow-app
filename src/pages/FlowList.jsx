@@ -24,8 +24,10 @@ const styles = {
   topBar: {
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: '2rem',
+    flexWrap: 'wrap',
+    gap: '0.75rem',
   },
   title: {
     fontSize: '1.75rem',
@@ -408,7 +410,15 @@ function FlowList() {
     return (
       <div style={styles.page}>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        <Header />
+        <Header>
+          <span style={{
+            fontSize: '1rem', fontWeight: 700,
+            background: 'linear-gradient(135deg, #a78bfa, #7c3aed)',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+          }}>
+            Flows
+          </span>
+        </Header>
         <div style={styles.loadingContainer}>
           <div style={styles.spinner} />
         </div>
@@ -418,14 +428,22 @@ function FlowList() {
 
   return (
     <div style={styles.page}>
-      <Header />
+      <Header>
+        <span style={{
+          fontSize: '1rem', fontWeight: 700,
+          background: 'linear-gradient(135deg, #a78bfa, #7c3aed)',
+          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+        }}>
+          Flows
+        </span>
+      </Header>
       <div style={styles.container}>
         <div style={styles.topBar}>
           <div>
             <h1 style={styles.title}>Fluxos de Conversação</h1>
             <p style={styles.subtitle}>{flows.length} fluxo{flows.length !== 1 ? 's' : ''}{filterExecMode ? ` (${filterExecMode === 'passive' ? 'passivo' : filterExecMode === 'active' ? 'ativo' : 'ambos'})` : ''}</p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <select
               value={filterExecMode}
               onChange={(e) => setFilterExecMode(e.target.value)}
@@ -491,7 +509,7 @@ function FlowList() {
               }}
               title="Tutorial"
             >
-              ?
+              📖
             </button>
             {isAdmin && (
               <>

@@ -1430,3 +1430,89 @@ python scripts/db_backup_restore.py migrate
 | Algo deu errado, quero voltar | `restore` |
 | Quero banco limpo pra desenvolvimento | `rebuild` |
 | Adicionei tabelas novas (ex: pgvector) | `migrate` |
+
+---
+
+## 14. Funis CRM
+
+Os Funis CRM permitem acompanhar visualmente a jornada de cada contato em etapas personalizadas, com automacoes integradas ao MonitChat.
+
+### 14.1 Conceitos Basicos
+
+| Conceito | Descricao |
+|---|---|
+| **Funil** | Um pipeline com etapas sequenciais (ex: Vendas, Suporte, Pos-venda) |
+| **Etapa** | Uma fase do processo (ex: Novo Lead, Qualificado, Proposta, Fechado) |
+| **Card** | Um contato posicionado em uma etapa do funil |
+| **Automacao** | Acao executada automaticamente quando um card entra em uma etapa |
+
+### 14.2 Criando um Funil
+
+1. Acesse **Funis** pelo botao no header
+2. Clique em **+ Novo Funil**
+3. De um nome e configure as etapas com cores
+4. Clique em **Criar Funil**
+
+Cada contato pode estar em apenas uma etapa por funil. Um contato pode estar em multiplos funis diferentes.
+
+### 14.3 Kanban Board
+
+O kanban exibe as etapas como colunas e os cards como cartoes:
+
+- **Arrastar e soltar** — mova cards entre colunas para alterar a etapa
+- **Adicionar card** — clique em "+ Adicionar contato" na base de qualquer coluna
+- **Buscar** — campo de busca no header filtra por nome ou telefone
+- **Detalhe** — clique no card para ver historico, alterar etapa ou remover
+
+### 14.4 Automacoes por Etapa
+
+Acesse pelo botao **Configurar** no kanban. Para cada etapa, adicione acoes que disparam automaticamente quando um card entra:
+
+| Acao | Descricao | Requer contexto? |
+|---|---|---|
+| **Enviar mensagem** | Envia texto via WhatsApp | Sim (token) |
+| **Enviar template** | Envia template aprovado com parametros | Sim (token + conta WA) |
+| **Transferir departamento** | Roteia para departamento do MonitChat | Sim (token) |
+| **Atribuir tag** | Adiciona tag ao contato | Sim (token + contact_id) |
+| **Alterar status ticket** | Muda status do ticket ativo | Sim (token + ticket_id) |
+| **Alterar dono ticket** | Atribui ticket a um usuario | Sim (token + ticket_id) |
+
+> **Importante:** Automacoes que exigem contexto so funcionam para contatos que ja interagiram com o bot (tem token e ticket_id salvos). Contatos adicionados manualmente podem nao ter esses dados.
+
+### 14.5 Integracao com Flow Builder
+
+Use o no **Mover no Funil** no Flow Builder para que o bot mova contatos automaticamente:
+
+```
+[Cliente manda mensagem]
+    |
+[Bot coleta dados]
+    |
+[Mover no Funil -> "Novo Lead"]  <-- cria o card automaticamente
+    |
+[Bot qualifica]
+    |
+[Mover no Funil -> "Qualificado"]  <-- automacoes da etapa disparam
+    |
+[Transferir para vendedor]
+```
+
+**Configuracao do no:**
+- **Funil** — selecione o funil destino
+- **Etapa** — selecione a etapa destino
+- **Criar se nao existir** — cria o card automaticamente se o contato ainda nao esta no funil (padrao: ativado)
+
+### 14.6 Fluxo Completo (Exemplo)
+
+1. Cliente envia mensagem no WhatsApp
+2. Bot atende e coleta nome + interesse
+3. No "Mover no Funil" cria card em **Novo Lead**
+   - Automacao: atribui tag "lead-whatsapp"
+4. Bot qualifica o lead → move para **Qualificado**
+   - Automacao: transfere para dept "Vendas"
+   - Automacao: envia msg "Um vendedor vai te atender!"
+5. Vendedor arrasta no kanban para **Proposta**
+   - Automacao: altera status do ticket para "Em negociacao"
+6. Vendedor arrasta para **Fechado**
+   - Automacao: atribui tag "cliente-novo"
+   - Automacao: envia template de boas-vindas

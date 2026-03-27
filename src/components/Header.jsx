@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../contexts/ThemeContext'
 import GlobalSettingsPanel from './GlobalSettingsPanel'
 
-function Header({ children }) {
+function Header({ children, hideNav }) {
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
   const [showGlobalSettings, setShowGlobalSettings] = useState(false)
@@ -23,7 +23,20 @@ function Header({ children }) {
   }
 
   return (
-    <header style={{
+    <>
+    <style>{`
+      @media (max-width: 768px) {
+        .header-btn-label { display: none !important; }
+        .header-bar { gap: 0.4rem !important; padding: 0.4rem 0.5rem !important; }
+        .header-bar > div { gap: 0.3rem !important; }
+        .header-user-name { display: none !important; }
+        .header-logo-text { display: none !important; }
+        .header-autosave { display: none !important; }
+        .header-flow-name { max-width: 120px !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+        .header-flow-desc { display: none !important; }
+      }
+    `}</style>
+    <header className="header-bar" style={{
       background: 'var(--header-bg)',
       padding: '0.5rem 1rem',
       display: 'flex',
@@ -54,7 +67,7 @@ function Header({ children }) {
               width: 'auto',
             }}
           />
-          <span style={{
+          <span className="header-logo-text" style={{
             fontSize: '1rem',
             fontWeight: '700',
             background: 'linear-gradient(135deg, #818cf8, #6366f1)',
@@ -79,6 +92,73 @@ function Header({ children }) {
         gap: '0.5rem',
         flexShrink: 0,
       }}>
+        {!hideNav && (
+          <button
+            onClick={() => navigate('/')}
+            title="Fluxos de conversacao"
+            style={{
+              height: '30px',
+              padding: '0 0.5rem',
+              backgroundColor: 'transparent',
+              color: 'var(--header-btn-text)',
+              border: '1px solid var(--header-btn-border)',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.3rem',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--accent)'
+              e.currentTarget.style.color = 'var(--accent)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--header-btn-border)'
+              e.currentTarget.style.color = 'var(--header-btn-text)'
+            }}
+          >
+            <span style={{ fontSize: '0.85rem' }}>&#x1F504;</span>
+            <span className="header-btn-label">Fluxos</span>
+          </button>
+        )}
+
+        {!hideNav && (
+          <button
+            onClick={() => navigate('/funnels')}
+            title="Funis CRM"
+          style={{
+            height: '30px',
+            padding: '0 0.5rem',
+            backgroundColor: 'transparent',
+            color: 'var(--header-btn-text)',
+            border: '1px solid var(--header-btn-border)',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.3rem',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'var(--accent)'
+            e.currentTarget.style.color = 'var(--accent)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'var(--header-btn-border)'
+            e.currentTarget.style.color = 'var(--header-btn-text)'
+          }}
+        >
+          <span style={{ fontSize: '0.85rem' }}>&#x1F4CA;</span>
+          <span className="header-btn-label">Funis</span>
+        </button>
+        )}
+
+        {!hideNav && (
         <button
           onClick={() => setShowGlobalSettings(true)}
           title="Configuracoes Globais"
@@ -107,8 +187,9 @@ function Header({ children }) {
           }}
         >
           <span style={{ fontSize: '0.85rem' }}>&#9881;</span>
-          Global
+          <span className="header-btn-label">Global</span>
         </button>
+        )}
 
         <button
           onClick={() => window.open('/docs', '_blank')}
@@ -138,7 +219,7 @@ function Header({ children }) {
           }}
         >
           <span style={{ fontSize: '0.85rem' }}>📖</span>
-          Guia
+          <span className="header-btn-label">Guia</span>
         </button>
 
         <button
@@ -207,7 +288,7 @@ function Header({ children }) {
               {firstName.charAt(0).toUpperCase()}
             </div>
 
-            <span style={{
+            <span className="header-user-name" style={{
               fontWeight: '500',
               color: 'var(--header-text)',
               fontSize: '0.82rem',
@@ -248,6 +329,7 @@ function Header({ children }) {
         <GlobalSettingsPanel onClose={() => setShowGlobalSettings(false)} />
       )}
     </header>
+    </>
   )
 }
 

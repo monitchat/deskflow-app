@@ -27,6 +27,7 @@ const nodeIcons = {
   audio_transcription: '🎤',
   whatsapp_template: '📨',
   set_ticket_owner: '👑',
+  funnel_move: '📊',
 }
 
 const nodeLabels = {
@@ -55,6 +56,7 @@ const nodeLabels = {
   audio_transcription: 'Transcrição',
   whatsapp_template: 'Template WA',
   set_ticket_owner: 'Alterar Dono',
+  funnel_move: 'Mover no Funil',
 }
 
 function CustomNode({ data, type, selected, id }) {

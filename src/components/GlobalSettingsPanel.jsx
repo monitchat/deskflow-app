@@ -440,7 +440,8 @@ function GlobalSettingsPanel({ onClose }) {
       <div style={{
         backgroundColor: 'var(--bg, #fff)',
         borderRadius: '12px',
-        width: '600px',
+        width: '90%',
+        maxWidth: '600px',
         maxHeight: '80vh',
         display: 'flex',
         flexDirection: 'column',
