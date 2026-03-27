@@ -20,6 +20,12 @@ function FunnelBoard() {
   const [showConfig, setShowConfig] = useState(false)
   const [automations, setAutomations] = useState([])
   const [editStages, setEditStages] = useState([])
+  const [mcTags, setMcTags] = useState([])
+  const [mcDepartments, setMcDepartments] = useState([])
+  const [mcStatuses, setMcStatuses] = useState([])
+  const [mcUsers, setMcUsers] = useState([])
+  const [waAccounts, setWaAccounts] = useState([])
+  const [waTemplates, setWaTemplates] = useState({})
 
   useEffect(() => { loadFunnel(); loadCards() }, [id])
 
@@ -55,7 +61,32 @@ function FunnelBoard() {
   const openConfig = () => {
     setEditStages([...(funnel?.stages || [])])
     loadAutomations()
+    loadMonitchatData()
     setShowConfig(true)
+  }
+
+  const loadMonitchatData = async () => {
+    const token = localStorage.getItem('token')
+    const headers = { Authorization: `Bearer ${token}` }
+    try {
+      const [tagsRes, deptRes, statusRes, usersRes, waRes] = await Promise.allSettled([
+        fetch('https://alb.monitchat.com/api/v1/tag?take=2000', { headers }).then(r => r.json()),
+        fetch('https://api-v2.monitchat.com/api/v1/department?take=500', { headers }).then(r => r.json()),
+        fetch('https://api-v2.monitchat.com/api/v1/ticket-status', { headers }).then(r => r.json()),
+        fetch('https://api-v2.monitchat.com/api/v1/user?take=500', { headers }).then(r => r.json()),
+        fetch('https://api-v2.monitchat.com/api/v1/social/whatsapp', { headers }).then(r => r.json()),
+      ])
+      if (tagsRes.status === 'fulfilled') setMcTags(tagsRes.value?.payload?.data || tagsRes.value?.data || [])
+      if (deptRes.status === 'fulfilled') setMcDepartments(deptRes.value?.data || [])
+      if (statusRes.status === 'fulfilled') setMcStatuses(statusRes.value?.data || [])
+      if (usersRes.status === 'fulfilled') setMcUsers(usersRes.value?.data || [])
+      if (waRes.status === 'fulfilled') {
+        const accounts = (waRes.value?.data || []).filter(a => a.whatsapp_account_key)
+        setWaAccounts(accounts)
+      }
+    } catch (err) {
+      console.error('Error loading MonitChat data:', err)
+    }
   }
 
   const saveStages = async () => {
@@ -96,6 +127,24 @@ function FunnelBoard() {
       loadAutomations()
     } catch (err) {
       console.error(err)
+    }
+  }
+
+  const loadTemplatesForAccount = async (accountId) => {
+    if (waTemplates[accountId]) return
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(
+        `https://api-v2.monitchat.com/api/v1/social/${accountId}/templates`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const data = await res.json()
+      const approved = (data.templates || [])
+        .filter(t => t.status?.toUpperCase() === 'APPROVED')
+        .sort((a, b) => a.name.localeCompare(b.name))
+      setWaTemplates(prev => ({ ...prev, [accountId]: approved }))
+    } catch (err) {
+      console.error('Error loading templates:', err)
     }
   }
 
@@ -537,6 +586,7 @@ function FunnelBoard() {
                     >
                       <option value="">+ Adicionar acao</option>
                       <option value="send_message">Enviar mensagem</option>
+                      <option value="send_template">Enviar template WhatsApp</option>
                       <option value="transfer_department">Transferir departamento</option>
                       <option value="set_tag">Atribuir tag</option>
                       <option value="set_ticket_status">Alterar status ticket</option>
@@ -554,7 +604,7 @@ function FunnelBoard() {
                         }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
                             <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                              {{ send_message: 'Enviar mensagem', transfer_department: 'Transferir dept.', set_tag: 'Atribuir tag', set_ticket_status: 'Alterar status', set_ticket_owner: 'Alterar dono' }[auto.action_type] || auto.action_type}
+                              {{ send_message: 'Enviar mensagem', send_template: 'Template WhatsApp', transfer_department: 'Transferir dept.', set_tag: 'Atribuir tag', set_ticket_status: 'Alterar status', set_ticket_owner: 'Alterar dono' }[auto.action_type] || auto.action_type}
                             </span>
                             <button onClick={() => deleteAutomation(auto.id)}
                               style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem' }}>✕</button>
@@ -570,44 +620,225 @@ function FunnelBoard() {
                             />
                           )}
 
+                          {auto.action_type === 'send_template' && (() => {
+                            const cfg = auto.action_config || {}
+                            const accId = cfg.account_id
+                            const tpls = waTemplates[accId] || []
+                            const selectedTpl = accId && cfg.template_name
+                              ? tpls.find(t => t.name === cfg.template_name && t.language === cfg.template_language)
+                              : null
+                            const extractVars = (text) => {
+                              if (!text) return []
+                              const matches = text.match(/\{\{(\w+)\}\}/g)
+                              if (!matches) return []
+                              return [...new Set(matches)].map(m => ({ placeholder: m, index: m.replace(/[{}]/g, '') }))
+                            }
+                            const headerComp = selectedTpl?.components?.find(c => c.type === 'HEADER')
+                            const bodyComp = selectedTpl?.components?.find(c => c.type === 'BODY')
+                            const headerVars = headerComp?.format === 'TEXT' ? extractVars(headerComp.text) : []
+                            const bodyVars = bodyComp ? extractVars(bodyComp.text) : []
+
+                            const updateCfg = (updates) => {
+                              updateAutomation(auto.id, { action_config: { ...cfg, ...updates } })
+                            }
+
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                {/* Conta WhatsApp */}
+                                <select
+                                  value={accId || ''}
+                                  onChange={(e) => {
+                                    const id = e.target.value
+                                    const acc = waAccounts.find(a => String(a.id) === id)
+                                    updateCfg({
+                                      account_id: id ? parseInt(id) : null,
+                                      account_number: acc?.phone_number || '',
+                                      template_name: null, template_language: null,
+                                      template: null, header_params: {}, body_params: {},
+                                    })
+                                    if (id) loadTemplatesForAccount(id)
+                                  }}
+                                  style={{ width: '100%', padding: '0.3rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                >
+                                  <option value="">Selecione a conta WhatsApp</option>
+                                  {waAccounts.map(a => (
+                                    <option key={a.id} value={a.id}>{a.phone_number} - {a.company || 'Sem nome'}</option>
+                                  ))}
+                                </select>
+
+                                {/* Template */}
+                                {accId && (
+                                  <select
+                                    value={cfg.template_name && cfg.template_language ? `${cfg.template_name}|${cfg.template_language}` : ''}
+                                    onChange={(e) => {
+                                      if (!e.target.value) {
+                                        updateCfg({ template_name: null, template_language: null, template: null, header_params: {}, body_params: {} })
+                                        return
+                                      }
+                                      const [name, lang] = e.target.value.split('|')
+                                      const tpl = tpls.find(t => t.name === name && t.language === lang)
+                                      updateCfg({
+                                        template_name: name, template_language: lang,
+                                        template: tpl ? { name: tpl.name, language: { code: tpl.language || 'pt_BR' }, components: [] } : null,
+                                        header_params: {}, body_params: {},
+                                      })
+                                    }}
+                                    onFocus={() => loadTemplatesForAccount(accId)}
+                                    style={{ width: '100%', padding: '0.3rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                                  >
+                                    <option value="">Selecione o template</option>
+                                    {tpls.map(t => (
+                                      <option key={`${t.name}-${t.language}`} value={`${t.name}|${t.language}`}>
+                                        {t.name} ({t.language})
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+
+                                {/* Preview */}
+                                {selectedTpl && (
+                                  <div style={{ padding: '0.4rem', fontSize: '0.7rem', background: 'var(--bg-primary)', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                                    {headerComp && <div style={{ fontWeight: 600, marginBottom: '0.2rem', color: 'var(--text-primary)' }}>{headerComp.format === 'TEXT' ? headerComp.text : `[${headerComp.format}]`}</div>}
+                                    {bodyComp && <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-muted)', lineHeight: 1.4 }}>{bodyComp.text}</div>}
+                                  </div>
+                                )}
+
+                                {/* Parametros do Header */}
+                                {headerVars.length > 0 && (
+                                  <div>
+                                    <small style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.7rem' }}>Parametros do Header</small>
+                                    {headerVars.map(v => (
+                                      <input
+                                        key={`h-${v.index}`}
+                                        type="text"
+                                        value={(cfg.header_params || {})[v.index] || ''}
+                                        onChange={(e) => updateCfg({ header_params: { ...(cfg.header_params || {}), [v.index]: e.target.value } })}
+                                        placeholder={`Valor para {{${v.index}}}`}
+                                        style={{ width: '100%', padding: '0.25rem', fontSize: '0.72rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', marginTop: '0.2rem', boxSizing: 'border-box' }}
+                                      />
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Header de midia */}
+                                {headerComp && headerComp.format !== 'TEXT' && (
+                                  <div>
+                                    <small style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.7rem' }}>URL da midia ({headerComp.format})</small>
+                                    <input
+                                      type="text"
+                                      value={cfg.header_media_url || ''}
+                                      onChange={(e) => updateCfg({ header_media_url: e.target.value })}
+                                      placeholder="https://..."
+                                      style={{ width: '100%', padding: '0.25rem', fontSize: '0.72rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', marginTop: '0.2rem', boxSizing: 'border-box' }}
+                                    />
+                                  </div>
+                                )}
+
+                                {/* Parametros do Body */}
+                                {bodyVars.length > 0 && (
+                                  <div>
+                                    <small style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.7rem' }}>Parametros do Body</small>
+                                    {bodyVars.map(v => (
+                                      <input
+                                        key={`b-${v.index}`}
+                                        type="text"
+                                        value={(cfg.body_params || {})[v.index] || ''}
+                                        onChange={(e) => updateCfg({ body_params: { ...(cfg.body_params || {}), [v.index]: e.target.value } })}
+                                        placeholder={`Valor para {{${v.index}}}`}
+                                        style={{ width: '100%', padding: '0.25rem', fontSize: '0.72rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', marginTop: '0.2rem', boxSizing: 'border-box' }}
+                                      />
+                                    ))}
+                                    <small style={{ color: 'var(--text-muted)', fontSize: '0.65rem', display: 'block', marginTop: '0.2rem' }}>
+                                      Use ${'{{campo}}'} para variaveis do contexto
+                                    </small>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })()}
+
                           {auto.action_type === 'transfer_department' && (
-                            <input
-                              type="number"
-                              value={auto.action_config?.department_id || ''}
-                              onChange={(e) => updateAutomation(auto.id, { action_config: { ...auto.action_config, department_id: parseInt(e.target.value) || null } })}
-                              placeholder="ID do departamento"
-                              style={{ width: '100%', padding: '0.3rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
-                            />
+                            mcDepartments.length > 0 ? (
+                              <select
+                                value={auto.action_config?.department_id || ''}
+                                onChange={(e) => updateAutomation(auto.id, { action_config: { ...auto.action_config, department_id: e.target.value ? parseInt(e.target.value) : null } })}
+                                style={{ width: '100%', padding: '0.3rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                              >
+                                <option value="">Selecione um departamento</option>
+                                {mcDepartments.map(d => (
+                                  <option key={d.id} value={d.id}>{d.name} (ID: {d.id})</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input type="number" value={auto.action_config?.department_id || ''}
+                                onChange={(e) => updateAutomation(auto.id, { action_config: { ...auto.action_config, department_id: parseInt(e.target.value) || null } })}
+                                placeholder="ID do departamento"
+                                style={{ width: '100%', padding: '0.3rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
+                              />
+                            )
                           )}
 
                           {auto.action_type === 'set_tag' && (
-                            <input
-                              type="number"
-                              value={auto.action_config?.tag_id || ''}
-                              onChange={(e) => updateAutomation(auto.id, { action_config: { ...auto.action_config, tag_id: parseInt(e.target.value) || null } })}
-                              placeholder="ID da tag"
-                              style={{ width: '100%', padding: '0.3rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
-                            />
+                            mcTags.length > 0 ? (
+                              <select
+                                value={auto.action_config?.tag_id || ''}
+                                onChange={(e) => updateAutomation(auto.id, { action_config: { ...auto.action_config, tag_id: e.target.value ? parseInt(e.target.value) : null } })}
+                                style={{ width: '100%', padding: '0.3rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                              >
+                                <option value="">Selecione uma tag</option>
+                                {mcTags.map(t => (
+                                  <option key={t.id} value={t.id}>{t.tag || t.name} (ID: {t.id})</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input type="number" value={auto.action_config?.tag_id || ''}
+                                onChange={(e) => updateAutomation(auto.id, { action_config: { ...auto.action_config, tag_id: parseInt(e.target.value) || null } })}
+                                placeholder="ID da tag"
+                                style={{ width: '100%', padding: '0.3rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
+                              />
+                            )
                           )}
 
                           {auto.action_type === 'set_ticket_status' && (
-                            <input
-                              type="number"
-                              value={auto.action_config?.status_id || ''}
-                              onChange={(e) => updateAutomation(auto.id, { action_config: { ...auto.action_config, status_id: parseInt(e.target.value) || null } })}
-                              placeholder="ID do status"
-                              style={{ width: '100%', padding: '0.3rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
-                            />
+                            mcStatuses.length > 0 ? (
+                              <select
+                                value={auto.action_config?.status_id || ''}
+                                onChange={(e) => updateAutomation(auto.id, { action_config: { ...auto.action_config, status_id: e.target.value ? parseInt(e.target.value) : null } })}
+                                style={{ width: '100%', padding: '0.3rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                              >
+                                <option value="">Selecione um status</option>
+                                {mcStatuses.map(s => (
+                                  <option key={s.id} value={s.id}>{s.name} ({s.progress || 0}%)</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input type="number" value={auto.action_config?.status_id || ''}
+                                onChange={(e) => updateAutomation(auto.id, { action_config: { ...auto.action_config, status_id: parseInt(e.target.value) || null } })}
+                                placeholder="ID do status"
+                                style={{ width: '100%', padding: '0.3rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
+                              />
+                            )
                           )}
 
                           {auto.action_type === 'set_ticket_owner' && (
-                            <input
-                              type="number"
-                              value={auto.action_config?.user_id || ''}
-                              onChange={(e) => updateAutomation(auto.id, { action_config: { ...auto.action_config, user_id: parseInt(e.target.value) || null } })}
-                              placeholder="ID do usuario"
-                              style={{ width: '100%', padding: '0.3rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
-                            />
+                            mcUsers.length > 0 ? (
+                              <select
+                                value={auto.action_config?.user_id || ''}
+                                onChange={(e) => updateAutomation(auto.id, { action_config: { ...auto.action_config, user_id: e.target.value ? parseInt(e.target.value) : null } })}
+                                style={{ width: '100%', padding: '0.3rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                              >
+                                <option value="">Selecione um usuario</option>
+                                {mcUsers.map(u => (
+                                  <option key={u.id} value={u.id}>{u.name} ({u.email || `ID: ${u.id}`})</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input type="number" value={auto.action_config?.user_id || ''}
+                                onChange={(e) => updateAutomation(auto.id, { action_config: { ...auto.action_config, user_id: parseInt(e.target.value) || null } })}
+                                placeholder="ID do usuario"
+                                style={{ width: '100%', padding: '0.3rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
+                              />
+                            )
                           )}
                         </div>
                       ))}

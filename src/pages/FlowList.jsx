@@ -408,7 +408,15 @@ function FlowList() {
     return (
       <div style={styles.page}>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        <Header />
+        <Header>
+          <span style={{
+            fontSize: '1rem', fontWeight: 700,
+            background: 'linear-gradient(135deg, #a78bfa, #7c3aed)',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+          }}>
+            Flows
+          </span>
+        </Header>
         <div style={styles.loadingContainer}>
           <div style={styles.spinner} />
         </div>
@@ -418,7 +426,15 @@ function FlowList() {
 
   return (
     <div style={styles.page}>
-      <Header />
+      <Header>
+        <span style={{
+          fontSize: '1rem', fontWeight: 700,
+          background: 'linear-gradient(135deg, #a78bfa, #7c3aed)',
+          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+        }}>
+          Flows
+        </span>
+      </Header>
       <div style={styles.container}>
         <div style={styles.topBar}>
           <div>

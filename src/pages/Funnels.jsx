@@ -73,7 +73,7 @@ function Funnels() {
               fontSize: '0.78rem', fontWeight: 600,
             }}
           >
-            Fluxos
+            <span style={{ fontSize: '0.85rem' }}>&#x1F504;</span> Fluxos
           </button>
           <span style={{
             fontSize: '1rem', fontWeight: 700,
