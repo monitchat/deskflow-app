@@ -2,12 +2,19 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../contexts/ThemeContext'
 import Header from '../components/Header'
+import FunnelTutorialModal from '../components/FunnelTutorialModal'
 import api from '../config/axios'
 
 function Funnels() {
   const navigate = useNavigate()
   const { theme } = useTheme()
   const [funnels, setFunnels] = useState([])
+  const [showTutorial, setShowTutorial] = useState(() => {
+    return !localStorage.getItem('deskflow-funnel-tutorial-seen')
+  })
+  const isMaster = localStorage.getItem('user_is_master') === 'true'
+  const isAdmin = localStorage.getItem('user_is_admin') === 'true'
+  const [filterCompanyId, setFilterCompanyId] = useState('')
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
@@ -64,47 +71,84 @@ function Funnels() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
       <Header>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button
-            onClick={() => navigate('/')}
-            style={{
-              background: 'none', border: '1px solid var(--border)', borderRadius: '6px',
-              color: 'var(--text-primary)', cursor: 'pointer', padding: '0.3rem 0.6rem',
-              fontSize: '0.78rem', fontWeight: 600,
-            }}
-          >
-            <span style={{ fontSize: '0.85rem' }}>&#x1F504;</span> Fluxos
-          </button>
-          <span style={{
-            fontSize: '1rem', fontWeight: 700,
-            background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          }}>
-            Funis CRM
-          </span>
-        </div>
+        <span style={{
+          fontSize: '1rem', fontWeight: 700,
+          background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+        }}>
+          Funis CRM
+        </span>
       </Header>
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-            Funis
-          </h1>
-          <button
-            onClick={() => setShowCreate(true)}
-            style={{
-              padding: '0.5rem 1rem', fontSize: '0.85rem', fontWeight: 600,
-              background: 'linear-gradient(135deg, #6366f1, #818cf8)', color: '#fff',
-              border: 'none', borderRadius: '8px', cursor: 'pointer',
-            }}
-          >
-            + Novo Funil
-          </button>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem 1rem' }}>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+          marginBottom: '2rem', flexWrap: 'wrap', gap: '0.75rem',
+        }}>
+          <div>
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', margin: 0 }}>
+              Funis CRM
+            </h1>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+              {funnels.length} funil{funnels.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {isMaster && (
+              <select
+                value={filterCompanyId}
+                onChange={(e) => setFilterCompanyId(e.target.value)}
+                style={{
+                  padding: '0.5rem 0.75rem', border: '1px solid var(--border)',
+                  borderRadius: '8px', fontSize: '0.85rem',
+                  backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', cursor: 'pointer',
+                }}
+              >
+                <option value="">Todas as empresas</option>
+                {[...new Set(funnels.map(f => f.company_id).filter(Boolean))].sort((a, b) => a - b).map(cid => (
+                  <option key={cid} value={cid}>Empresa {cid}</option>
+                ))}
+              </select>
+            )}
+            <button
+              onClick={() => setShowTutorial(true)}
+              style={{
+                padding: '0.6rem', border: '1px solid var(--border)', borderRadius: '10px',
+                cursor: 'pointer', fontSize: '1rem',
+                backgroundColor: 'var(--bg-surface)', color: 'var(--text-muted)',
+                transition: 'all 0.2s', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', width: '38px', height: '38px',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#6366f1' }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}
+              title="Tutorial"
+            >
+              📖
+            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setShowCreate(true)}
+                style={{
+                  padding: '0.65rem 1.25rem',
+                  background: 'linear-gradient(135deg, #6366f1, #818cf8)', color: '#fff',
+                  border: 'none', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 600,
+                  cursor: 'pointer', boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                  display: 'flex', alignItems: 'center', gap: '0.4rem',
+                }}
+              >
+                + Novo Funil
+              </button>
+            )}
+          </div>
         </div>
 
-        {loading ? (
+        {(() => {
+          const filtered = filterCompanyId
+            ? funnels.filter(f => String(f.company_id) === filterCompanyId)
+            : funnels
+          return loading ? (
           <p style={{ color: 'var(--text-muted)' }}>Carregando...</p>
-        ) : funnels.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div style={{
             padding: '3rem', textAlign: 'center', color: 'var(--text-muted)',
             border: '2px dashed var(--border)', borderRadius: '12px',
@@ -113,8 +157,8 @@ function Funnels() {
             <p style={{ fontSize: '0.85rem' }}>Crie seu primeiro funil para gerenciar leads e contatos.</p>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
-            {funnels.map(f => (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))', gap: '1rem' }}>
+            {filtered.map(f => (
               <div
                 key={f.id}
                 style={{
@@ -166,7 +210,8 @@ function Funnels() {
               </div>
             ))}
           </div>
-        )}
+        )
+        })()}
       </div>
 
       {/* Modal criar funil */}
@@ -234,6 +279,13 @@ function Funnels() {
             </div>
           </div>
         </div>
+      )}
+
+      {showTutorial && (
+        <FunnelTutorialModal onClose={() => {
+          setShowTutorial(false)
+          localStorage.setItem('deskflow-funnel-tutorial-seen', 'true')
+        }} />
       )}
     </div>
   )

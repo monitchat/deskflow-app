@@ -31,6 +31,7 @@ import ExecutionLogsPanel from '../components/ExecutionLogsPanel'
 import SchedulePanel from '../components/SchedulePanel'
 import TutorialModal from '../components/TutorialModal'
 import NavigationTutorial from '../components/NavigationTutorial'
+import GlobalSettingsPanel from '../components/GlobalSettingsPanel'
 import { useToast as __useToast } from '../contexts/ToastContext'
 
 const nodeTypes = {
@@ -90,6 +91,7 @@ function FlowBuilderInner() {
   const [showKnowledge, setShowKnowledge] = useState(false)
   const [showLogs, setShowLogs] = useState(false)
   const [showSchedule, setShowSchedule] = useState(false)
+  const [showGlobalSettings, setShowGlobalSettings] = useState(false)
   const isAdmin = localStorage.getItem('user_is_admin') === 'true'
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState(null)
@@ -1114,7 +1116,7 @@ function FlowBuilderInner() {
 
   return (
     <>
-      <Header>
+      <Header hideNav>
         {/* Conteúdo do flow builder integrado no header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '100%' }}>
           {/* Esquerda: voltar + nome + descrição */}
@@ -1138,9 +1140,11 @@ function FlowBuilderInner() {
             </button>
             <div style={{ minWidth: 0, flex: 1 }}>
               <input
+                className="header-flow-name"
                 type="text"
                 value={flowName}
                 onChange={(e) => setFlowName(e.target.value)}
+                title={flowName}
                 style={{
                   fontSize: '0.9rem',
                   border: 'none',
@@ -1154,10 +1158,12 @@ function FlowBuilderInner() {
                 }}
               />
               <input
+                className="header-flow-desc"
                 type="text"
                 value={flowDescription}
                 onChange={(e) => setFlowDescription(e.target.value)}
                 placeholder="Descrição do fluxo"
+                title={flowDescription}
                 style={{
                   fontSize: '0.68rem',
                   border: 'none',
@@ -1172,7 +1178,7 @@ function FlowBuilderInner() {
           </div>
 
           {/* Centro: status de salvamento */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+          <div className="header-autosave" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', cursor: 'pointer', color: 'var(--text-dim)' }}>
               <input
                 type="checkbox"
@@ -1192,7 +1198,7 @@ function FlowBuilderInner() {
           {/* Direita: botões de ação + menu */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
             {isAdmin && (
-              <button className="btn btn-success" onClick={handleSave} style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem' }}>
+              <button className="btn btn-success header-autosave" onClick={handleSave} style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem' }}>
                 Salvar
               </button>
             )}
@@ -1243,6 +1249,29 @@ function FlowBuilderInner() {
                   zIndex: 1100,
                   minWidth: '180px',
                 }}>
+                  {isAdmin && (
+                    <button
+                      style={menuItemStyle}
+                      onClick={() => { setShowMenu(false); handleSave() }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <span>💾 Salvar</span>
+                    </button>
+                  )}
+                  <button
+                    style={menuItemStyle}
+                    onClick={() => { setAutoSaveEnabled(!autoSaveEnabled) }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <span>{autoSaveEnabled ? '✅' : '⬜'} Auto-save</span>
+                    {autoSaveEnabled && lastSaved && (
+                      <span style={{ color: 'var(--text-dim)', fontSize: '0.68rem' }}>
+                        {new Date(lastSaved).toLocaleTimeString()}
+                      </span>
+                    )}
+                  </button>
                   <button
                     style={menuItemStyle}
                     onClick={handlePlayground}
@@ -1318,6 +1347,14 @@ function FlowBuilderInner() {
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                       >
                         <span>&#9200; Agendamento</span>
+                      </button>
+                      <button
+                        style={menuItemStyle}
+                        onClick={() => { setShowMenu(false); setShowGlobalSettings(true) }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <span>&#9881; Configurações Globais</span>
                       </button>
                       <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.3rem 0' }} />
                       <button
@@ -1756,6 +1793,10 @@ function FlowBuilderInner() {
             onFlowCreated={(newId) => navigate(`/flow/${newId}`)}
             onClose={() => setShowSchedule(false)}
           />
+        )}
+
+        {showGlobalSettings && (
+          <GlobalSettingsPanel onClose={() => setShowGlobalSettings(false)} />
         )}
 
         {confirmModal && (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import api from '../config/axios'
@@ -78,7 +78,7 @@ function FunnelBoard() {
       ])
       if (tagsRes.status === 'fulfilled') setMcTags(tagsRes.value?.payload?.data || tagsRes.value?.data || [])
       if (deptRes.status === 'fulfilled') setMcDepartments(deptRes.value?.data || [])
-      if (statusRes.status === 'fulfilled') setMcStatuses(statusRes.value?.data || [])
+      if (statusRes.status === 'fulfilled') setMcStatuses(statusRes.value?.data || statusRes.value?.payload?.data || [])
       if (usersRes.status === 'fulfilled') setMcUsers(usersRes.value?.data || [])
       if (waRes.status === 'fulfilled') {
         const accounts = (waRes.value?.data || []).filter(a => a.whatsapp_account_key)
@@ -112,13 +112,23 @@ function FunnelBoard() {
     }
   }
 
-  const updateAutomation = async (autoId, updates) => {
-    try {
-      await api.put(`/api/v1/funnels/${id}/automations/${autoId}`, updates)
-      loadAutomations()
-    } catch (err) {
-      console.error(err)
-    }
+  const debounceTimers = useRef({})
+
+  const updateAutomation = (autoId, updates) => {
+    // Atualiza estado local imediatamente
+    setAutomations(prev => prev.map(a =>
+      a.id === autoId ? { ...a, ...updates, action_config: updates.action_config || a.action_config } : a
+    ))
+
+    // Debounce da chamada API (800ms)
+    if (debounceTimers.current[autoId]) clearTimeout(debounceTimers.current[autoId])
+    debounceTimers.current[autoId] = setTimeout(async () => {
+      try {
+        await api.put(`/api/v1/funnels/${id}/automations/${autoId}`, updates)
+      } catch (err) {
+        console.error(err)
+      }
+    }, 800)
   }
 
   const deleteAutomation = async (autoId) => {
@@ -240,44 +250,40 @@ function FunnelBoard() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', display: 'flex', flexDirection: 'column' }}>
-      <Header>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-          <button
-            onClick={() => navigate('/funnels')}
-            style={{
-              background: 'none', border: '1px solid var(--border)', borderRadius: '6px',
-              color: 'var(--text-primary)', cursor: 'pointer', padding: '0.3rem 0.6rem',
-              fontSize: '0.78rem', fontWeight: 600,
-            }}
-          >
-            Funis
-          </button>
-          <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            {funnel.name}
-          </span>
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar contato..."
-            style={{
-              padding: '0.3rem 0.6rem', fontSize: '0.78rem', borderRadius: '6px',
-              border: '1px solid var(--border)', background: 'var(--bg-input)',
-              color: 'var(--text-primary)', width: '200px',
-            }}
-          />
-          <button
-            onClick={openConfig}
-            style={{
-              background: 'none', border: '1px solid var(--border)', borderRadius: '6px',
-              color: 'var(--text-primary)', cursor: 'pointer', padding: '0.3rem 0.6rem',
-              fontSize: '0.78rem', fontWeight: 600,
-            }}
-          >
-            &#9881; Configurar
-          </button>
-        </div>
-      </Header>
+      <Header />
+
+      {/* Toolbar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '0.5rem',
+        padding: '0.6rem 1rem', borderBottom: '1px solid var(--border)',
+        background: 'var(--bg-surface)', flexWrap: 'wrap',
+      }}>
+        <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0, marginRight: 'auto' }}>
+          {funnel.name}
+        </h2>
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar contato..."
+          style={{
+            padding: '0.3rem 0.6rem', fontSize: '0.78rem', borderRadius: '6px',
+            border: '1px solid var(--border)', background: 'var(--bg-input)',
+            color: 'var(--text-primary)', width: '180px',
+          }}
+        />
+        <button
+          onClick={openConfig}
+          style={{
+            padding: '0.3rem 0.7rem', fontSize: '0.78rem', fontWeight: 600,
+            background: 'none', border: '1px solid var(--border)', borderRadius: '6px',
+            color: 'var(--text-primary)', cursor: 'pointer', display: 'flex',
+            alignItems: 'center', gap: '0.3rem',
+          }}
+        >
+          &#9881; Configurar
+        </button>
+      </div>
 
       {/* Kanban Board */}
       <div style={{
@@ -511,11 +517,16 @@ function FunnelBoard() {
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000,
         }} onClick={() => setShowConfig(false)}>
           <div style={{
-            background: 'var(--bg-surface)', borderRadius: '12px', padding: '1.5rem',
-            width: '90%', maxWidth: '650px', maxHeight: '85vh', overflowY: 'auto',
+            background: 'var(--bg-surface)', borderRadius: '12px',
+            width: '90%', maxWidth: '650px', maxHeight: '85vh',
             border: '1px solid var(--border)',
+            display: 'flex', flexDirection: 'column',
           }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            {/* Header fixo */}
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', flexShrink: 0,
+            }}>
               <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                 Configurar Funil
               </h2>
@@ -524,6 +535,9 @@ function FunnelBoard() {
                 ✕
               </button>
             </div>
+
+            {/* Body scrollavel */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
 
             {/* Etapas */}
             <div style={{ marginBottom: '1.5rem' }}>
@@ -542,16 +556,10 @@ function FunnelBoard() {
                     style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1rem' }}>✕</button>
                 </div>
               ))}
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <button onClick={() => setEditStages([...editStages, { id: crypto.randomUUID(), name: '', color: '#64748b', position: editStages.length }])}
-                  style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'none', color: '#6366f1', border: '1px dashed #6366f160', borderRadius: '6px', cursor: 'pointer' }}>
-                  + Etapa
-                </button>
-                <button onClick={saveStages}
-                  style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', fontWeight: 600, background: '#6366f1', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-                  Salvar etapas
-                </button>
-              </div>
+              <button onClick={() => setEditStages([...editStages, { id: crypto.randomUUID(), name: '', color: '#64748b', position: editStages.length }])}
+                style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'none', color: '#6366f1', border: '1px dashed #6366f160', borderRadius: '6px', cursor: 'pointer', marginTop: '0.5rem' }}>
+                + Etapa
+              </button>
             </div>
 
             <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '1rem 0' }} />
@@ -679,7 +687,7 @@ function FunnelBoard() {
                                       const tpl = tpls.find(t => t.name === name && t.language === lang)
                                       updateCfg({
                                         template_name: name, template_language: lang,
-                                        template: tpl ? { name: tpl.name, language: { code: tpl.language || 'pt_BR' }, components: [] } : null,
+                                        template_category: tpl?.category || 'UTILITY',
                                         header_params: {}, body_params: {},
                                       })
                                     }}
@@ -808,7 +816,7 @@ function FunnelBoard() {
                               >
                                 <option value="">Selecione um status</option>
                                 {mcStatuses.map(s => (
-                                  <option key={s.id} value={s.id}>{s.name} ({s.progress || 0}%)</option>
+                                  <option key={s.id} value={s.id}>{s.description || s.name} ({s.progress_percentage || 0}%)</option>
                                 ))}
                               </select>
                             ) : (
@@ -853,6 +861,23 @@ function FunnelBoard() {
                 </div>
               )
             })}
+            </div>
+
+            {/* Footer fixo */}
+            <div style={{
+              padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', flexShrink: 0,
+              display: 'flex', justifyContent: 'flex-end', gap: '0.5rem',
+              background: 'var(--bg-surface)', borderRadius: '0 0 12px 12px',
+            }}>
+              <button onClick={() => setShowConfig(false)}
+                style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', background: 'none', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer' }}>
+                Fechar
+              </button>
+              <button onClick={async () => { await saveStages(); setShowConfig(false) }}
+                style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', fontWeight: 600, background: '#6366f1', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                Salvar
+              </button>
+            </div>
           </div>
         </div>
       )}

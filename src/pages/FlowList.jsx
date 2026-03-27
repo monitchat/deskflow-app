@@ -24,8 +24,10 @@ const styles = {
   topBar: {
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: '2rem',
+    flexWrap: 'wrap',
+    gap: '0.75rem',
   },
   title: {
     fontSize: '1.75rem',
@@ -441,7 +443,7 @@ function FlowList() {
             <h1 style={styles.title}>Fluxos de Conversação</h1>
             <p style={styles.subtitle}>{flows.length} fluxo{flows.length !== 1 ? 's' : ''}{filterExecMode ? ` (${filterExecMode === 'passive' ? 'passivo' : filterExecMode === 'active' ? 'ativo' : 'ambos'})` : ''}</p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <select
               value={filterExecMode}
               onChange={(e) => setFilterExecMode(e.target.value)}
@@ -507,7 +509,7 @@ function FlowList() {
               }}
               title="Tutorial"
             >
-              ?
+              📖
             </button>
             {isAdmin && (
               <>
