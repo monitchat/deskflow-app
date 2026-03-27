@@ -8,6 +8,8 @@ import FlowList from './pages/FlowList'
 import Login from './pages/Login'
 import DocsPage from './pages/DocsPage'
 import Analytics from './pages/Analytics'
+import Funnels from './pages/Funnels'
+import FunnelBoard from './pages/FunnelBoard'
 import ProtectedRoute from './components/ProtectedRoute'
 import './index.css'
 
@@ -38,6 +40,22 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           element={
             <ProtectedRoute>
               <FlowBuilder />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/funnels"
+          element={
+            <ProtectedRoute>
+              <Funnels />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/funnels/:id"
+          element={
+            <ProtectedRoute>
+              <FunnelBoard />
             </ProtectedRoute>
           }
         />

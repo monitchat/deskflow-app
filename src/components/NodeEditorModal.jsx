@@ -3145,6 +3145,84 @@ function NodeEditorModal({ node, nodes = [], edges = [], onSave, onDelete, onClo
           </>
         )
 
+      case 'funnel_move': {
+        const [funnelsList, setFunnelsList] = useState([])
+        const [funnelStages, setFunnelStages] = useState([])
+
+        useEffect(() => {
+          api.get('/api/v1/funnels').then(res => {
+            if (res.data.success) {
+              setFunnelsList(res.data.data || [])
+              if (data.funnel_id) {
+                const f = (res.data.data || []).find(f => f.id === data.funnel_id)
+                if (f) setFunnelStages(f.stages || [])
+              }
+            }
+          }).catch(() => {})
+        }, [])
+
+        return (
+          <>
+            <div className="form-group">
+              <label>Funil</label>
+              <select
+                value={data.funnel_id || ''}
+                onChange={(e) => {
+                  const fid = e.target.value ? parseInt(e.target.value) : null
+                  updateData('funnel_id', fid)
+                  const f = funnelsList.find(f => f.id === fid)
+                  setFunnelStages(f?.stages || [])
+                  updateData('stage_id', '')
+                }}
+              >
+                <option value="">Selecione um funil</option>
+                {funnelsList.map(f => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {funnelStages.length > 0 && (
+              <div className="form-group">
+                <label>Etapa de destino</label>
+                <select
+                  value={data.stage_id || ''}
+                  onChange={(e) => updateData('stage_id', e.target.value)}
+                >
+                  <option value="">Selecione a etapa</option>
+                  {funnelStages.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={data.create_if_missing !== false}
+                  onChange={(e) => updateData('create_if_missing', e.target.checked)}
+                />
+                Criar card se o contato nao estiver no funil
+              </label>
+            </div>
+
+            <div className="form-group">
+              <label>Rotulo</label>
+              <input
+                type="text"
+                value={data.label || ''}
+                onChange={(e) => updateData('label', e.target.value)}
+                placeholder="Ex: Mover para Qualificado"
+              />
+            </div>
+          </>
+        )
+      }
+
       case 'whatsapp_template': {
         // Extrai variáveis de um template component (suporta {{1}} e {{nome}})
         const extractVariables = (text) => {

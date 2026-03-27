@@ -51,6 +51,7 @@ const nodeTypes = {
   set_ticket_status: CustomNode,
   whatsapp_template: CustomNode,
   set_ticket_owner: CustomNode,
+  funnel_move: CustomNode,
   media: CustomNode,
   jump_to: CustomNode,
   loop: CustomNode,

@@ -59,6 +59,7 @@ const categories = [
       { type: 'transfer', label: 'Transferir', icon: '👤', description: 'Transfere para atendimento humano' },
       { type: 'set_ticket_status', label: 'Alterar Status', icon: '🎫', description: 'Altera o status do ticket/atendimento' },
       { type: 'set_ticket_owner', label: 'Alterar Dono', icon: '👑', description: 'Altera o responsável pelo ticket' },
+      { type: 'funnel_move', label: 'Mover no Funil', icon: '📊', description: 'Move o contato para uma etapa do funil CRM' },
     ],
   },
   {
